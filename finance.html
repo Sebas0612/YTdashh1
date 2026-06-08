@@ -2045,7 +2045,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     <div class="vinted-stat"><div class="vinted-stat-label">Balance</div><div class="vinted-stat-value" id="vintedBalance">EUR 0.00</div></div>
     <div class="vinted-stat"><div class="vinted-stat-label">Invested</div><div class="vinted-stat-value" id="vintedInvested">EUR 0.00</div></div>
     <div class="vinted-stat"><div class="vinted-stat-label">Revenue</div><div class="vinted-stat-value" id="vintedRevenue">EUR 0.00</div></div>
-    <div class="vinted-stat"><div class="vinted-stat-label">Realized profit</div><div class="vinted-stat-value" id="vintedProfit">EUR 0.00</div></div>
+    <div class="vinted-stat"><div class="vinted-stat-label">Cashflow</div><div class="vinted-stat-value" id="vintedProfit">EUR 0.00</div></div>
     <div class="vinted-stat"><div class="vinted-stat-label">Unsold value</div><div class="vinted-stat-value" id="vintedInventoryValue">EUR 0.00</div></div>
     <div class="vinted-stat"><div class="vinted-stat-label">Sold / unsold</div><div class="vinted-stat-value" id="vintedCounts">0 / 0</div></div>
   </div>
@@ -2090,12 +2090,10 @@ input[type="date"]::-webkit-calendar-picker-indicator {
       <h3>Add sale</h3>
       <div class="vinted-form-row">
         <input type="date" id="vSaleDate">
-        <select id="vSaleItem"></select>
+        <input type="text" id="vSaleItemName" placeholder="Item name">
         <input type="number" id="vSalePrice" placeholder="Sale price" min="0" step="0.01">
-        <input type="number" id="vSaleFees" placeholder="Platform fees" min="0" step="0.01">
-        <input type="number" id="vSaleShipping" placeholder="Shipping cost if you paid it" min="0" step="0.01">
         <input type="text" id="vSaleNote" placeholder="Note">
-        <button class="vinted-btn" id="vSaleAdd" type="button">Add sale</button>
+        <button class="vinted-btn" id="vSaleAdd" type="button">Add Sale</button>
       </div>
     </div>
 
@@ -2124,7 +2122,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 
   <div class="vinted-section-h"><span class="vinted-section-label">Sales history</span><span class="nw-chart-delta" id="vintedSalesCount">0</span></div>
   <div class="vinted-table-wrap">
-    <table class="vinted-table"><thead><tr><th>Date</th><th>Item</th><th>Net revenue</th><th>Profit</th><th>Note</th><th></th></tr></thead><tbody id="vintedSalesBody"></tbody></table>
+    <table class="vinted-table"><thead><tr><th>Date</th><th>Item</th><th>Sale price</th><th>Note</th><th></th></tr></thead><tbody id="vintedSalesBody"></tbody></table>
     <div class="vinted-empty" id="vintedSalesEmpty">No sales yet.</div>
   </div>
 </div>
@@ -3562,7 +3560,10 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   }
   function vItemName(s, id, fallback) {
     const item = s.items.find(x => x.id === id);
-    return item ? item.name : (fallback || 'Manual item');
+    if (!item) return fallback || 'Manual item';
+    const clean = String(item.name || '').replace(/\s+#\d+$/, '').trim();
+    if (!clean || clean !== item.name || /^vinted batch$/i.test(clean)) return 'Inventory item';
+    return clean;
   }
   function vSetText(id, text) {
     const el = document.getElementById(id);
@@ -3575,20 +3576,53 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     if (value > 0) el.classList.add('good');
     if (value < 0) el.classList.add('bad');
   }
+  function vSaleAmount(sale) {
+    return Number(sale.salePrice != null ? sale.salePrice : sale.netRevenue) || 0;
+  }
+  function vSaleName(sale) {
+    return sale.itemName || sale.manualItemName || 'Sold item';
+  }
+  function vCashflowEvents(s) {
+    const out = [];
+    s.batches.forEach(b => out.push({
+      date: b.date,
+      type: 'purchase',
+      refId: b.id,
+      description: b.title || 'Purchase batch',
+      amount: -(Number(b.totalCost) || 0),
+      createdAt: b.createdAt || 0
+    }));
+    s.expenses.forEach(e => out.push({
+      date: e.date,
+      type: 'expense',
+      refId: e.id,
+      description: e.description || 'Expense',
+      amount: -(Number(e.amount) || 0),
+      createdAt: e.createdAt || 0
+    }));
+    s.sales.forEach(sale => out.push({
+      date: sale.date,
+      type: 'sale',
+      refId: sale.id,
+      description: vSaleName(sale),
+      amount: vSaleAmount(sale),
+      createdAt: sale.createdAt || 0
+    }));
+    return out;
+  }
   function vCalc(s) {
     const purchaseCosts = s.batches.reduce((sum, b) => sum + (Number(b.totalCost) || 0), 0);
     const extraExpenses = s.expenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
     const totalInvested = purchaseCosts + extraExpenses;
-    const totalRevenue = s.sales.reduce((sum, sale) => sum + (Number(sale.netRevenue) || 0), 0);
+    const totalRevenue = s.sales.reduce((sum, sale) => sum + vSaleAmount(sale), 0);
     const balance = totalRevenue - totalInvested;
-    const realizedProfit = s.sales.reduce((sum, sale) => sum + (Number(sale.profit) || 0), 0);
     const unsold = s.items.filter(i => i.status !== 'sold');
     const sold = s.items.filter(i => i.status === 'sold');
     const unsoldValue = unsold.reduce((sum, i) => sum + (Number(i.cost) || 0), 0);
-    return { totalInvested, totalRevenue, balance, realizedProfit, unsoldValue, unsold, sold };
+    return { totalInvested, totalRevenue, balance, realizedProfit: balance, unsoldValue, unsold, sold };
   }
   function vSortedTransactions(s) {
-    return s.transactions.slice().sort((a, b) =>
+    return vCashflowEvents(s).sort((a, b) =>
       String(b.date || '').localeCompare(String(a.date || '')) || ((b.createdAt || 0) - (a.createdAt || 0))
     );
   }
@@ -3610,27 +3644,13 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     vSetText('vintedInventoryValue', vMoney(c.unsoldValue));
     vSetText('vintedCounts', c.sold.length + ' / ' + c.unsold.length);
   }
-  function vRenderSaleSelect(s) {
-    const sel = document.getElementById('vSaleItem');
-    if (!sel) return;
-    const unsold = s.items.filter(i => i.status !== 'sold');
-    if (!unsold.length) {
-      sel.innerHTML = '<option value="">No unsold items</option>';
-      sel.disabled = true;
-      return;
-    }
-    sel.disabled = false;
-    sel.innerHTML = unsold.map(i =>
-      '<option value="' + i.id + '">' + escapeHtml(i.name) + ' - ' + vMoney(i.cost) + '</option>'
-    ).join('');
-  }
   function vRenderChart(s) {
     const wrap = document.getElementById('vintedChartWrap');
     const line = document.getElementById('vintedChartLine');
     const area = document.getElementById('vintedChartArea');
     const delta = document.getElementById('vintedChartDelta');
     if (!wrap || !line || !area) return;
-    const tx = s.transactions.slice().sort((a, b) =>
+    const tx = vCashflowEvents(s).sort((a, b) =>
       String(a.date || '').localeCompare(String(b.date || '')) || ((a.createdAt || 0) - (b.createdAt || 0))
     );
     if (!tx.length) {
@@ -3698,8 +3718,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     vSetText('vintedSalesCount', sales.length + ' sales');
     if (salesBody) {
       salesBody.innerHTML = sales.map(sale => {
-        const profitCls = (Number(sale.profit) || 0) >= 0 ? 'good' : 'bad';
-        return '<tr><td>' + escapeHtml(sale.date || '') + '</td><td>' + escapeHtml(vItemName(s, sale.itemId, sale.manualItemName)) + '</td><td class="vinted-amount">' + vMoney(sale.netRevenue) + '</td><td class="vinted-amount ' + profitCls + '">' + vMoney(sale.profit) + '</td><td>' + escapeHtml(sale.note || '') + '</td><td><button class="vinted-delete" data-v-action="delete-sale" data-id="' + sale.id + '">Delete</button></td></tr>';
+        return '<tr><td>' + escapeHtml(sale.date || '') + '</td><td>' + escapeHtml(vSaleName(sale)) + '</td><td class="vinted-amount good">' + vMoney(vSaleAmount(sale)) + '</td><td>' + escapeHtml(sale.note || '') + '</td><td><button class="vinted-delete" data-v-action="delete-sale" data-id="' + sale.id + '">Delete</button></td></tr>';
       }).join('');
     }
     if (salesEmpty) salesEmpty.style.display = sales.length ? 'none' : 'block';
@@ -3707,7 +3726,6 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   function vRender() {
     const s = vState();
     vRenderSummary(s);
-    vRenderSaleSelect(s);
     vRenderChart(s);
     vRenderTables(s);
   }
@@ -3734,26 +3752,19 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     vRender();
   }
   function vAddSale() {
-    const itemId = (document.getElementById('vSaleItem') || {}).value || '';
+    const itemName = vText('vSaleItemName');
     const salePrice = vNum('vSalePrice');
-    const fees = vNum('vSaleFees');
-    const sellerShipping = vNum('vSaleShipping');
-    if (!itemId) { alert('Add a purchase batch first, then pick an unsold item.'); return; }
+    const note = vText('vSaleNote');
+    if (!itemName) { alert('Add the item name first.'); return; }
     if (salePrice <= 0) { alert('Add the sale price first.'); return; }
     const s = vState();
-    const item = s.items.find(i => i.id === itemId && i.status !== 'sold');
-    if (!item) { alert('That item is no longer available.'); vRender(); return; }
-    const netRevenue = salePrice - fees - sellerShipping;
-    const profit = netRevenue - (Number(item.cost) || 0);
     const id = vId('vs');
     const createdAt = Date.now();
-    const sale = { id, date: vDate('vSaleDate'), itemId, manualItemName: null, salePrice, platformFees: fees, shippingCostIfSellerPaid: sellerShipping, netRevenue, profit, note: vText('vSaleNote'), createdAt };
-    item.status = 'sold';
-    item.saleId = id;
+    const sale = { id, date: vDate('vSaleDate'), itemName, salePrice, note, createdAt };
     s.sales.push(sale);
-    s.transactions.push({ id: vId('vt'), date: sale.date, type: 'sale', refId: id, description: item.name, amount: netRevenue, createdAt });
+    s.transactions.push({ id: vId('vt'), date: sale.date, type: 'sale', refId: id, description: itemName, amount: salePrice, createdAt });
     vSave(s);
-    ['vSalePrice','vSaleFees','vSaleShipping','vSaleNote'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    ['vSaleItemName','vSalePrice','vSaleNote'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
     vRender();
   }
   function vAddExpense() {
