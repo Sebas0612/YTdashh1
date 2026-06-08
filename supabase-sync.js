@@ -41,7 +41,7 @@
       prefixes: []
     },
     gym: {
-      exact: ['po_coach_v1', 'po_coach_workout_done', 'po_coach_weights', 'po_coach_photos'],
+      exact: ['gym_tracker_v2', 'po_coach_v1', 'po_coach_workout_done', 'po_coach_weights', 'po_coach_photos'],
       prefixes: []
     }
   };
