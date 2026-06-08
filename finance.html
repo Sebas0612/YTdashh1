@@ -111,6 +111,9 @@ body::after {
   display: flex;
   justify-content: center;
   gap: 4px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
   padding: 8px max(12px, env(safe-area-inset-left)) calc(8px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-right));
   background: linear-gradient(180deg, transparent, rgba(5,5,6,0.92) 30%);
   backdrop-filter: blur(20px);
@@ -125,7 +128,9 @@ body::after {
   pointer-events: none;
 }
 .bot-tab {
-  flex: 1; max-width: 140px;
+  flex: 0 0 auto;
+  min-width: 72px;
+  max-width: 140px;
   display: flex; flex-direction: column; align-items: center; gap: 2px;
   background: transparent;
   border: 1px solid transparent;
@@ -136,6 +141,7 @@ body::after {
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition: background 0.15s, color 0.15s, border-color 0.15s;
+  white-space: nowrap;
 }
 .bot-tab:hover { color: var(--text-secondary); background: rgba(255,255,255,0.025); }
 .bot-tab.active {
@@ -148,6 +154,11 @@ body::after {
   font-size: 10px; font-weight: 700;
   letter-spacing: 0.10em;
   text-transform: uppercase;
+  white-space: nowrap;
+}
+@media (max-width: 600px) {
+  .bottom-tabs { justify-content: flex-start; }
+  .bot-tab { min-width: 68px; padding-left: 10px; padding-right: 10px; }
 }
 
 /* Sections: hide non-active when bottom tabs are in use */
@@ -1566,6 +1577,166 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 @media (max-width: 600px) {
   .sub-auto-toggle { width: 100%; justify-content: space-between; padding: 12px 14px; }
 }
+
+/* ============================================================
+   VINTED RESELL TRACKER
+   ============================================================ */
+.vinted-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.vinted-stat {
+  background: rgba(255,255,255,0.025);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: var(--radius-lg);
+  padding: 14px;
+}
+.vinted-stat-label {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  font-weight: 700;
+}
+.vinted-stat-value {
+  margin-top: 6px;
+  font-size: 22px;
+  line-height: 1.05;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.vinted-stat-value.good { color: #6BE3A4; }
+.vinted-stat-value.bad { color: #FF8A8A; }
+.vinted-form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.vinted-form {
+  background: rgba(255,255,255,0.025);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: var(--radius-lg);
+  padding: 14px;
+}
+.vinted-form h3 {
+  margin: 0 0 10px;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.vinted-form-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 7px;
+}
+.vinted-form input,
+.vinted-form select {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: rgba(0,0,0,0.22);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 13px;
+  padding: 10px 11px;
+  outline: none;
+}
+.vinted-form input::placeholder { color: var(--text-tertiary); }
+.vinted-btn {
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.06);
+  color: var(--text-primary);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.vinted-btn:hover { background: rgba(255,255,255,0.12); }
+.vinted-delete {
+  border: 1px solid rgba(255,138,138,0.22);
+  background: rgba(255,138,138,0.08);
+  color: #FF8A8A;
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.vinted-chart-wrap {
+  color: #6BE3A4;
+}
+.vinted-chart-wrap.is-negative {
+  color: #FF8A8A;
+}
+.vinted-table-wrap {
+  overflow-x: auto;
+  margin-bottom: 14px;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.018);
+}
+.vinted-table {
+  width: 100%;
+  min-width: 620px;
+  border-collapse: collapse;
+}
+.vinted-table th,
+.vinted-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  text-align: left;
+  font-size: 12px;
+  color: var(--text-secondary);
+  vertical-align: middle;
+}
+.vinted-table th {
+  color: var(--text-tertiary);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+.vinted-table tr:last-child td { border-bottom: none; }
+.vinted-amount { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.vinted-amount.good { color: #6BE3A4; }
+.vinted-amount.bad { color: #FF8A8A; }
+.vinted-section-h {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 18px 0 8px;
+}
+.vinted-section-label {
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  font-weight: 700;
+}
+.vinted-empty {
+  padding: 14px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  text-align: center;
+}
+@media (max-width: 900px) {
+  .vinted-form-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 600px) {
+  .vinted-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .vinted-stat { padding: 12px; }
+  .vinted-stat-value { font-size: 19px; }
+}
 </style>
 </head>
 <body>
@@ -1864,6 +2035,102 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 
 </div>
 
+<!-- ===== VINTED RESELL ===== -->
+<div class="section" data-section="vinted">
+  <div class="section-title">
+    <span class="section-title-text">VINTED</span>
+  </div>
+
+  <div class="vinted-summary-grid">
+    <div class="vinted-stat"><div class="vinted-stat-label">Balance</div><div class="vinted-stat-value" id="vintedBalance">EUR 0.00</div></div>
+    <div class="vinted-stat"><div class="vinted-stat-label">Invested</div><div class="vinted-stat-value" id="vintedInvested">EUR 0.00</div></div>
+    <div class="vinted-stat"><div class="vinted-stat-label">Revenue</div><div class="vinted-stat-value" id="vintedRevenue">EUR 0.00</div></div>
+    <div class="vinted-stat"><div class="vinted-stat-label">Realized profit</div><div class="vinted-stat-value" id="vintedProfit">EUR 0.00</div></div>
+    <div class="vinted-stat"><div class="vinted-stat-label">Unsold value</div><div class="vinted-stat-value" id="vintedInventoryValue">EUR 0.00</div></div>
+    <div class="vinted-stat"><div class="vinted-stat-label">Sold / unsold</div><div class="vinted-stat-value" id="vintedCounts">0 / 0</div></div>
+  </div>
+
+  <div class="nw-chart-wrap vinted-chart-wrap" id="vintedChartWrap">
+    <div class="nw-chart-head">
+      <span class="nw-chart-label">Cumulative balance</span>
+      <span class="nw-chart-delta" id="vintedChartDelta">EUR 0.00</span>
+    </div>
+    <svg class="nw-chart-svg" id="vintedChartSvg" viewBox="0 0 600 200" preserveAspectRatio="none" aria-hidden="true">
+      <defs>
+        <linearGradient id="vintedChartGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="currentColor" stop-opacity="0.55"/>
+          <stop offset="60%" stop-color="currentColor" stop-opacity="0.18"/>
+          <stop offset="100%" stop-color="currentColor" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <line class="nw-chart-grid" x1="0" x2="600" y1="40" y2="40"/>
+      <line class="nw-chart-grid" x1="0" x2="600" y1="100" y2="100"/>
+      <line class="nw-chart-grid" x1="0" x2="600" y1="160" y2="160"/>
+      <path id="vintedChartArea" fill="url(#vintedChartGrad)" d=""/>
+      <path id="vintedChartLine" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" style="filter: drop-shadow(0 0 6px currentColor)" d=""/>
+    </svg>
+    <div class="nw-chart-empty" id="vintedChartEmpty">Add a purchase, sale, or expense to chart your Vinted cashflow.</div>
+  </div>
+
+  <div class="vinted-form-grid">
+    <div class="vinted-form">
+      <h3>Add purchase batch</h3>
+      <div class="vinted-form-row">
+        <input type="date" id="vBatchDate">
+        <input type="text" id="vBatchTitle" placeholder="Batch name / note">
+        <input type="number" id="vBatchItems" placeholder="Number of items" min="1" step="1">
+        <input type="number" id="vBatchItemCost" placeholder="Total clothing cost" min="0" step="0.01">
+        <input type="number" id="vBatchShipping" placeholder="Total shipping cost" min="0" step="0.01">
+        <input type="number" id="vBatchExtra" placeholder="Extra costs" min="0" step="0.01">
+        <button class="vinted-btn" id="vBatchAdd" type="button">Add purchase</button>
+      </div>
+    </div>
+
+    <div class="vinted-form">
+      <h3>Add sale</h3>
+      <div class="vinted-form-row">
+        <input type="date" id="vSaleDate">
+        <select id="vSaleItem"></select>
+        <input type="number" id="vSalePrice" placeholder="Sale price" min="0" step="0.01">
+        <input type="number" id="vSaleFees" placeholder="Platform fees" min="0" step="0.01">
+        <input type="number" id="vSaleShipping" placeholder="Shipping cost if you paid it" min="0" step="0.01">
+        <input type="text" id="vSaleNote" placeholder="Note">
+        <button class="vinted-btn" id="vSaleAdd" type="button">Add sale</button>
+      </div>
+    </div>
+
+    <div class="vinted-form">
+      <h3>Add manual expense</h3>
+      <div class="vinted-form-row">
+        <input type="date" id="vExpenseDate">
+        <input type="text" id="vExpenseDesc" placeholder="Description">
+        <input type="number" id="vExpenseAmount" placeholder="Amount" min="0" step="0.01">
+        <button class="vinted-btn" id="vExpenseAdd" type="button">Add expense</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="vinted-section-h"><span class="vinted-section-label">Recent transactions</span><span class="nw-chart-delta" id="vintedTxCount">0</span></div>
+  <div class="vinted-table-wrap">
+    <table class="vinted-table"><thead><tr><th>Date</th><th>Type</th><th>Description</th><th>Amount</th><th></th></tr></thead><tbody id="vintedTxBody"></tbody></table>
+    <div class="vinted-empty" id="vintedTxEmpty">No Vinted transactions yet.</div>
+  </div>
+
+  <div class="vinted-section-h"><span class="vinted-section-label">Unsold inventory</span><span class="nw-chart-delta" id="vintedInventoryCount">0</span></div>
+  <div class="vinted-table-wrap">
+    <table class="vinted-table"><thead><tr><th>Item</th><th>Batch</th><th>Cost</th></tr></thead><tbody id="vintedInventoryBody"></tbody></table>
+    <div class="vinted-empty" id="vintedInventoryEmpty">No unsold items.</div>
+  </div>
+
+  <div class="vinted-section-h"><span class="vinted-section-label">Sales history</span><span class="nw-chart-delta" id="vintedSalesCount">0</span></div>
+  <div class="vinted-table-wrap">
+    <table class="vinted-table"><thead><tr><th>Date</th><th>Item</th><th>Net revenue</th><th>Profit</th><th>Note</th><th></th></tr></thead><tbody id="vintedSalesBody"></tbody></table>
+    <div class="vinted-empty" id="vintedSalesEmpty">No sales yet.</div>
+  </div>
+</div>
+
+</div>
+
 <!-- ===== BOTTOM TAB BAR ===== -->
 <nav class="bottom-tabs" id="bottomTabs" aria-label="Sections">
   <button class="bot-tab active" data-tab="net">
@@ -1881,6 +2148,10 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   <button class="bot-tab" data-tab="wish">
     <span class="bot-tab-icon">🎯</span>
     <span class="bot-tab-label">Wishlist</span>
+  </button>
+  <button class="bot-tab" data-tab="vinted">
+    <span class="bot-tab-icon">V</span>
+    <span class="bot-tab-label">Vinted</span>
   </button>
 </nav>
 
@@ -1931,7 +2202,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   }
   tabs.forEach(b => b.addEventListener('click', () => setActiveTab(b.dataset.tab)));
   const savedTab = storeGet(TAB_KEY);
-  setActiveTab(savedTab && ['net','subs','incoming','wish'].includes(savedTab) ? savedTab : 'net');
+  setActiveTab(savedTab && ['net','subs','incoming','wish','vinted'].includes(savedTab) ? savedTab : 'net');
 
   // ============================================================
   // NET WORTH (copied from the main dashboard, verbatim logic)
@@ -3245,6 +3516,319 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   });
   renderOrders();
   updateOrdPreview();
+
+  // ============================================================
+  // VINTED RESELL TRACKER
+  // ============================================================
+  const VINTED_KEY = 'vinted_resell_v1';
+
+  function vToday() {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  function vId(prefix) { return prefix + '_' + Date.now() + '_' + Math.floor(Math.random() * 9999); }
+  function vNum(id) {
+    const el = document.getElementById(id);
+    const n = parseFloat(el ? el.value : '');
+    return isNaN(n) ? 0 : n;
+  }
+  function vText(id) {
+    const el = document.getElementById(id);
+    return (el && el.value ? el.value : '').trim();
+  }
+  function vDate(id) {
+    const el = document.getElementById(id);
+    return (el && el.value) ? el.value : vToday();
+  }
+  function vMoney(v) {
+    const n = Number(v) || 0;
+    const sign = n < 0 ? '-' : '';
+    return sign + 'EUR ' + Math.abs(n).toFixed(2);
+  }
+  function vState() {
+    const raw = storeGet(VINTED_KEY) || {};
+    return {
+      batches: Array.isArray(raw.batches) ? raw.batches : [],
+      items: Array.isArray(raw.items) ? raw.items : [],
+      sales: Array.isArray(raw.sales) ? raw.sales : [],
+      expenses: Array.isArray(raw.expenses) ? raw.expenses : [],
+      transactions: Array.isArray(raw.transactions) ? raw.transactions : []
+    };
+  }
+  function vSave(s) { storeSet(VINTED_KEY, s); }
+  function vBatchTitle(s, id) {
+    const b = s.batches.find(x => x.id === id);
+    return b ? (b.title || 'Batch') : 'Batch';
+  }
+  function vItemName(s, id, fallback) {
+    const item = s.items.find(x => x.id === id);
+    return item ? item.name : (fallback || 'Manual item');
+  }
+  function vSetText(id, text) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+    return el;
+  }
+  function vSetAmountClass(el, value) {
+    if (!el) return;
+    el.classList.remove('good', 'bad');
+    if (value > 0) el.classList.add('good');
+    if (value < 0) el.classList.add('bad');
+  }
+  function vCalc(s) {
+    const purchaseCosts = s.batches.reduce((sum, b) => sum + (Number(b.totalCost) || 0), 0);
+    const extraExpenses = s.expenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+    const totalInvested = purchaseCosts + extraExpenses;
+    const totalRevenue = s.sales.reduce((sum, sale) => sum + (Number(sale.netRevenue) || 0), 0);
+    const balance = totalRevenue - totalInvested;
+    const realizedProfit = s.sales.reduce((sum, sale) => sum + (Number(sale.profit) || 0), 0);
+    const unsold = s.items.filter(i => i.status !== 'sold');
+    const sold = s.items.filter(i => i.status === 'sold');
+    const unsoldValue = unsold.reduce((sum, i) => sum + (Number(i.cost) || 0), 0);
+    return { totalInvested, totalRevenue, balance, realizedProfit, unsoldValue, unsold, sold };
+  }
+  function vSortedTransactions(s) {
+    return s.transactions.slice().sort((a, b) =>
+      String(b.date || '').localeCompare(String(a.date || '')) || ((b.createdAt || 0) - (a.createdAt || 0))
+    );
+  }
+  function vDeleteButton(t) {
+    if (t.type === 'purchase') return '<button class="vinted-delete" data-v-action="delete-batch" data-id="' + t.refId + '">Delete</button>';
+    if (t.type === 'sale') return '<button class="vinted-delete" data-v-action="delete-sale" data-id="' + t.refId + '">Delete</button>';
+    if (t.type === 'expense') return '<button class="vinted-delete" data-v-action="delete-expense" data-id="' + t.refId + '">Delete</button>';
+    return '';
+  }
+
+  function vRenderSummary(s) {
+    const c = vCalc(s);
+    const bal = vSetText('vintedBalance', vMoney(c.balance));
+    vSetAmountClass(bal, c.balance);
+    vSetText('vintedInvested', vMoney(c.totalInvested));
+    vSetText('vintedRevenue', vMoney(c.totalRevenue));
+    const profit = vSetText('vintedProfit', vMoney(c.realizedProfit));
+    vSetAmountClass(profit, c.realizedProfit);
+    vSetText('vintedInventoryValue', vMoney(c.unsoldValue));
+    vSetText('vintedCounts', c.sold.length + ' / ' + c.unsold.length);
+  }
+  function vRenderSaleSelect(s) {
+    const sel = document.getElementById('vSaleItem');
+    if (!sel) return;
+    const unsold = s.items.filter(i => i.status !== 'sold');
+    if (!unsold.length) {
+      sel.innerHTML = '<option value="">No unsold items</option>';
+      sel.disabled = true;
+      return;
+    }
+    sel.disabled = false;
+    sel.innerHTML = unsold.map(i =>
+      '<option value="' + i.id + '">' + escapeHtml(i.name) + ' - ' + vMoney(i.cost) + '</option>'
+    ).join('');
+  }
+  function vRenderChart(s) {
+    const wrap = document.getElementById('vintedChartWrap');
+    const line = document.getElementById('vintedChartLine');
+    const area = document.getElementById('vintedChartArea');
+    const delta = document.getElementById('vintedChartDelta');
+    if (!wrap || !line || !area) return;
+    const tx = s.transactions.slice().sort((a, b) =>
+      String(a.date || '').localeCompare(String(b.date || '')) || ((a.createdAt || 0) - (b.createdAt || 0))
+    );
+    if (!tx.length) {
+      wrap.classList.remove('has-data', 'is-negative');
+      line.setAttribute('d', '');
+      area.setAttribute('d', '');
+      if (delta) delta.textContent = vMoney(0);
+      return;
+    }
+    let running = 0;
+    const hist = tx.map(t => {
+      running += Number(t.amount) || 0;
+      return { v: running };
+    });
+    wrap.classList.add('has-data');
+    wrap.classList.toggle('is-negative', running < 0);
+    if (delta) delta.textContent = vMoney(running);
+    const W = 600, H = 200, pad = 8;
+    const vals = hist.map(p => p.v).concat([0]);
+    const minV = Math.min.apply(null, vals);
+    const maxV = Math.max.apply(null, vals);
+    const range = (maxV - minV) || Math.max(1, Math.abs(maxV));
+    if (hist.length === 1) {
+      const y = H - pad - ((hist[0].v - minV) / range) * (H - pad * 2);
+      line.setAttribute('d', 'M0,' + y + ' L' + W + ',' + y);
+      area.setAttribute('d', 'M0,' + y + ' L' + W + ',' + y + ' L' + W + ',' + H + ' L0,' + H + ' Z');
+      return;
+    }
+    const pts = hist.map((p, i) => ({
+      x: (i / (hist.length - 1)) * W,
+      y: H - pad - ((p.v - minV) / range) * (H - pad * 2)
+    }));
+    const d = nwSmoothPath(pts);
+    const first = pts[0], last = pts[pts.length - 1];
+    line.setAttribute('d', d);
+    area.setAttribute('d', d + ' L' + last.x + ',' + H + ' L' + first.x + ',' + H + ' Z');
+  }
+  function vRenderTables(s) {
+    const tx = vSortedTransactions(s);
+    const txBody = document.getElementById('vintedTxBody');
+    const txEmpty = document.getElementById('vintedTxEmpty');
+    vSetText('vintedTxCount', String(tx.length));
+    if (txBody) {
+      txBody.innerHTML = tx.slice(0, 40).map(t => {
+        const amtCls = (Number(t.amount) || 0) >= 0 ? 'good' : 'bad';
+        return '<tr><td>' + escapeHtml(t.date || '') + '</td><td>' + escapeHtml(t.type || '') + '</td><td>' + escapeHtml(t.description || '') + '</td><td class="vinted-amount ' + amtCls + '">' + vMoney(t.amount) + '</td><td>' + vDeleteButton(t) + '</td></tr>';
+      }).join('');
+    }
+    if (txEmpty) txEmpty.style.display = tx.length ? 'none' : 'block';
+
+    const unsold = s.items.filter(i => i.status !== 'sold');
+    const invBody = document.getElementById('vintedInventoryBody');
+    const invEmpty = document.getElementById('vintedInventoryEmpty');
+    vSetText('vintedInventoryCount', unsold.length + ' items');
+    if (invBody) {
+      invBody.innerHTML = unsold.map(i =>
+        '<tr><td>' + escapeHtml(i.name) + '</td><td>' + escapeHtml(vBatchTitle(s, i.batchId)) + '</td><td class="vinted-amount">' + vMoney(i.cost) + '</td></tr>'
+      ).join('');
+    }
+    if (invEmpty) invEmpty.style.display = unsold.length ? 'none' : 'block';
+
+    const sales = s.sales.slice().sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || ((b.createdAt || 0) - (a.createdAt || 0)));
+    const salesBody = document.getElementById('vintedSalesBody');
+    const salesEmpty = document.getElementById('vintedSalesEmpty');
+    vSetText('vintedSalesCount', sales.length + ' sales');
+    if (salesBody) {
+      salesBody.innerHTML = sales.map(sale => {
+        const profitCls = (Number(sale.profit) || 0) >= 0 ? 'good' : 'bad';
+        return '<tr><td>' + escapeHtml(sale.date || '') + '</td><td>' + escapeHtml(vItemName(s, sale.itemId, sale.manualItemName)) + '</td><td class="vinted-amount">' + vMoney(sale.netRevenue) + '</td><td class="vinted-amount ' + profitCls + '">' + vMoney(sale.profit) + '</td><td>' + escapeHtml(sale.note || '') + '</td><td><button class="vinted-delete" data-v-action="delete-sale" data-id="' + sale.id + '">Delete</button></td></tr>';
+      }).join('');
+    }
+    if (salesEmpty) salesEmpty.style.display = sales.length ? 'none' : 'block';
+  }
+  function vRender() {
+    const s = vState();
+    vRenderSummary(s);
+    vRenderSaleSelect(s);
+    vRenderChart(s);
+    vRenderTables(s);
+  }
+
+  function vAddBatch() {
+    const count = Math.max(1, Math.floor(vNum('vBatchItems')));
+    const itemCost = vNum('vBatchItemCost');
+    const shipping = vNum('vBatchShipping');
+    const extra = vNum('vBatchExtra');
+    const total = itemCost + shipping + extra;
+    const title = vText('vBatchTitle') || 'Vinted batch';
+    if (!count || total <= 0) { alert('Add item count and purchase costs first.'); return; }
+    const s = vState();
+    const id = vId('vb');
+    const createdAt = Date.now();
+    const batch = { id, date: vDate('vBatchDate'), title, numberOfItems: count, totalItemCost: itemCost, totalShippingCost: shipping, extraCosts: extra, totalCost: total, costPerItem: total / count, createdAt };
+    s.batches.push(batch);
+    for (let i = 1; i <= count; i++) {
+      s.items.push({ id: vId('vi'), batchId: id, name: title + ' #' + i, cost: batch.costPerItem, status: 'unsold', saleId: null });
+    }
+    s.transactions.push({ id: vId('vt'), date: batch.date, type: 'purchase', refId: id, description: title + ' (' + count + ' items)', amount: -total, createdAt });
+    vSave(s);
+    ['vBatchTitle','vBatchItems','vBatchItemCost','vBatchShipping','vBatchExtra'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    vRender();
+  }
+  function vAddSale() {
+    const itemId = (document.getElementById('vSaleItem') || {}).value || '';
+    const salePrice = vNum('vSalePrice');
+    const fees = vNum('vSaleFees');
+    const sellerShipping = vNum('vSaleShipping');
+    if (!itemId) { alert('Add a purchase batch first, then pick an unsold item.'); return; }
+    if (salePrice <= 0) { alert('Add the sale price first.'); return; }
+    const s = vState();
+    const item = s.items.find(i => i.id === itemId && i.status !== 'sold');
+    if (!item) { alert('That item is no longer available.'); vRender(); return; }
+    const netRevenue = salePrice - fees - sellerShipping;
+    const profit = netRevenue - (Number(item.cost) || 0);
+    const id = vId('vs');
+    const createdAt = Date.now();
+    const sale = { id, date: vDate('vSaleDate'), itemId, manualItemName: null, salePrice, platformFees: fees, shippingCostIfSellerPaid: sellerShipping, netRevenue, profit, note: vText('vSaleNote'), createdAt };
+    item.status = 'sold';
+    item.saleId = id;
+    s.sales.push(sale);
+    s.transactions.push({ id: vId('vt'), date: sale.date, type: 'sale', refId: id, description: item.name, amount: netRevenue, createdAt });
+    vSave(s);
+    ['vSalePrice','vSaleFees','vSaleShipping','vSaleNote'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    vRender();
+  }
+  function vAddExpense() {
+    const amount = vNum('vExpenseAmount');
+    const desc = vText('vExpenseDesc') || 'Manual expense';
+    if (amount <= 0) { alert('Add an expense amount first.'); return; }
+    const s = vState();
+    const id = vId('ve');
+    const createdAt = Date.now();
+    const exp = { id, date: vDate('vExpenseDate'), description: desc, amount, createdAt };
+    s.expenses.push(exp);
+    s.transactions.push({ id: vId('vt'), date: exp.date, type: 'expense', refId: id, description: desc, amount: -amount, createdAt });
+    vSave(s);
+    ['vExpenseDesc','vExpenseAmount'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    vRender();
+  }
+  function vDeleteBatch(id) {
+    const s = vState();
+    const hasSold = s.items.some(i => i.batchId === id && i.status === 'sold');
+    if (hasSold) { alert('This batch has sold items. Delete those sales before deleting the batch.'); return; }
+    const batch = s.batches.find(b => b.id === id);
+    if (!batch) return;
+    if (!confirm('Delete purchase batch "' + batch.title + '" and its unsold generated items?')) return;
+    s.batches = s.batches.filter(b => b.id !== id);
+    s.items = s.items.filter(i => i.batchId !== id);
+    s.transactions = s.transactions.filter(t => !(t.type === 'purchase' && t.refId === id));
+    vSave(s);
+    vRender();
+  }
+  function vDeleteSale(id) {
+    const s = vState();
+    const sale = s.sales.find(x => x.id === id);
+    if (!sale) return;
+    if (!confirm('Delete this sale and mark the item as unsold again?')) return;
+    const item = s.items.find(i => i.id === sale.itemId);
+    if (item) { item.status = 'unsold'; item.saleId = null; }
+    s.sales = s.sales.filter(x => x.id !== id);
+    s.transactions = s.transactions.filter(t => !(t.type === 'sale' && t.refId === id));
+    vSave(s);
+    vRender();
+  }
+  function vDeleteExpense(id) {
+    const s = vState();
+    const exp = s.expenses.find(x => x.id === id);
+    if (!exp) return;
+    if (!confirm('Delete expense "' + exp.description + '"?')) return;
+    s.expenses = s.expenses.filter(x => x.id !== id);
+    s.transactions = s.transactions.filter(t => !(t.type === 'expense' && t.refId === id));
+    vSave(s);
+    vRender();
+  }
+
+  ['vBatchDate','vSaleDate','vExpenseDate'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && !el.value) el.value = vToday();
+  });
+  const vBatchAdd = document.getElementById('vBatchAdd');
+  const vSaleAdd = document.getElementById('vSaleAdd');
+  const vExpenseAdd = document.getElementById('vExpenseAdd');
+  if (vBatchAdd) vBatchAdd.addEventListener('click', vAddBatch);
+  if (vSaleAdd) vSaleAdd.addEventListener('click', vAddSale);
+  if (vExpenseAdd) vExpenseAdd.addEventListener('click', vAddExpense);
+  const vintedSection = document.querySelector('[data-section="vinted"]');
+  if (vintedSection) {
+    vintedSection.addEventListener('click', e => {
+      const btn = e.target.closest('[data-v-action]');
+      if (!btn) return;
+      const action = btn.dataset.vAction;
+      const id = btn.dataset.id;
+      if (action === 'delete-batch') vDeleteBatch(id);
+      else if (action === 'delete-sale') vDeleteSale(id);
+      else if (action === 'delete-expense') vDeleteExpense(id);
+    });
+  }
+  vRender();
 
   // ============================================================
   // FINANCE TICKER — rotates through upcoming subscription renewals
