@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#08090b">
 <title>Gym Tracker</title>
 <script src="supabase-sync.js"></script>
@@ -636,6 +636,32 @@ button { -webkit-tap-highlight-color: transparent; }
   .custom-box { grid-template-columns: 1fr; }
   .progress-row { grid-template-columns: 72px 1fr; }
   .progress-row strong { grid-column: 1 / -1; }
+}
+@media (max-width: 768px) {
+  input,
+  textarea,
+  select,
+  button {
+    font-size: 16px;
+  }
+  .title-input {
+    font-size: 18px;
+  }
+  .set-input,
+  .date-input,
+  .note-input,
+  .search-input,
+  .custom-input,
+  .progress-controls select,
+  .filter-grid select {
+    font-size: 16px;
+  }
+  .icon-btn {
+    font-size: 21px;
+  }
+  .fab {
+    font-size: 32px;
+  }
 }
 </style>
 </head>
