@@ -52,6 +52,7 @@
   let suppressStorageSync = false;
   let statusEl = null;
   let statusTimer = null;
+  const pendingLocalChanges = {};
   const timers = {};
 
   const storageProto = Object.getPrototypeOf(localStorage);
@@ -210,6 +211,13 @@
     else console.warn('[dashboard-sync] ' + message);
   }
 
+  function debugSync() {
+    if (!window.DASHBOARD_SYNC_DEBUG) return;
+    const args = Array.prototype.slice.call(arguments);
+    args.unshift('[dashboard-sync]');
+    console.log.apply(console, args);
+  }
+
   function shouldShowStatus() {
     const path = (window.location.pathname || '').split('/').pop() || 'index.html';
     return path !== 'sync.html';
@@ -276,7 +284,6 @@
       }
       Object.keys(data).forEach(key => {
         if (!keyBelongsToApp(key, appKey)) return;
-        if (mode === 'merge' && localStorage.getItem(key) != null) return;
         const incoming = JSON.stringify(data[key]);
         if (localStorage.getItem(key) !== incoming) {
           originalSetItem(key, incoming);
@@ -304,12 +311,16 @@
       const user = await getCurrentUser();
       if (!user) {
         setSyncStatus('Local only');
+        debugSync('skipped save; not logged in', appKey);
         return null;
       }
       setSyncStatus('Syncing...');
+      debugSync('saving app_state', appKey);
       const result = await saveAppState(appKey, collectAppState(appKey));
       if (result && result.error) throw result.error;
+      pendingLocalChanges[appKey] = false;
       setSyncStatus('Synced');
+      debugSync('saved app_state', appKey);
       return result;
     } catch (err) {
       setSyncStatus('Local only');
@@ -320,14 +331,24 @@
 
   async function pullAppFromCloud(appKey, options) {
     const mode = options && options.mode === 'replace' ? 'replace' : 'merge';
+    const force = !!(options && options.force);
     try {
+      if (!force && pendingLocalChanges[appKey]) {
+        debugSync('skipped pull; local changes pending', appKey);
+        return null;
+      }
       const user = await getCurrentUser();
-      if (!user) return null;
+      if (!user) {
+        debugSync('skipped pull; not logged in', appKey);
+        return null;
+      }
       const data = await loadAppState(appKey);
       if (!isUsefulAppState(appKey, data)) {
+        debugSync('skipped pull; no useful cloud data', appKey);
         if (Object.keys(collectAppState(appKey)).length) schedulePush(appKey);
         return null;
       }
+      debugSync('loaded app_state', appKey);
       return applyAppState(appKey, data, { mode });
     } catch (err) {
       warnSync('Could not pull ' + appKey + ' from Supabase. LocalStorage was left untouched.', err);
@@ -365,15 +386,29 @@
   }
 
   function schedulePush(appKey) {
-    if (!appKey || suppressStorageSync || !isConfigured()) return;
+    if (!appKey) {
+      debugSync('skipped sync schedule; unknown localStorage key');
+      return;
+    }
+    if (suppressStorageSync) {
+      debugSync('skipped sync schedule; applying cloud data', appKey);
+      return;
+    }
+    if (!isConfigured()) {
+      debugSync('skipped sync schedule; Supabase not configured', appKey);
+      return;
+    }
+    pendingLocalChanges[appKey] = true;
+    debugSync('scheduled sync', appKey);
     setSyncStatus('Syncing...');
     clearTimeout(timers[appKey]);
     timers[appKey] = setTimeout(() => {
+      timers[appKey] = null;
       pushAppToCloud(appKey).catch(err => {
         setSyncStatus('Local only');
         warnSync('Could not sync ' + appKey + ' after a local change.', err);
       });
-    }, 600);
+    }, 800);
   }
 
   function scheduleAutoSync(appKey) {
@@ -384,16 +419,32 @@
     if (window.__dashboardSyncPatched) return;
     const patchedSetItem = function (key, value) {
       nativeSetItem.call(this, key, value);
-      if (this === localStorage) schedulePush(appForStorageKey(String(key)));
+      if (this === localStorage) {
+        const appKey = appForStorageKey(String(key));
+        debugSync('localStorage.setItem', String(key), appKey || 'unmapped');
+        schedulePush(appKey);
+      }
     };
     const patchedRemoveItem = function (key) {
       nativeRemoveItem.call(this, key);
-      if (this === localStorage) schedulePush(appForStorageKey(String(key)));
+      if (this === localStorage) {
+        const appKey = appForStorageKey(String(key));
+        debugSync('localStorage.removeItem', String(key), appKey || 'unmapped');
+        schedulePush(appKey);
+      }
     };
     try {
       if (!storageProto) throw new Error('Storage prototype is not available.');
-      storageProto.setItem = patchedSetItem;
-      storageProto.removeItem = patchedRemoveItem;
+      Object.defineProperty(storageProto, 'setItem', {
+        value: patchedSetItem,
+        configurable: true,
+        writable: true
+      });
+      Object.defineProperty(storageProto, 'removeItem', {
+        value: patchedRemoveItem,
+        configurable: true,
+        writable: true
+      });
     } catch (_) {
       try {
         localStorage.setItem = patchedSetItem.bind(localStorage);
@@ -403,6 +454,7 @@
       }
     }
     window.__dashboardSyncPatched = true;
+    debugSync('localStorage auto-sync hook installed');
   }
 
   function currentPageAppKey() {
@@ -418,7 +470,6 @@
   async function bootBackgroundSync() {
     if (booted) return;
     booted = true;
-    patchLocalStorage();
     if (!isConfigured()) {
       setSyncStatus('Local only');
       return;
@@ -427,6 +478,7 @@
       const supa = await getSupabaseClient();
       if (!supa) return;
       supa.auth.onAuthStateChange((_event, session) => {
+        debugSync('auth state changed', session && session.user ? 'signed-in' : 'signed-out');
         window.dispatchEvent(new CustomEvent('dashboard-sync-auth-changed'));
         if (session && session.user) {
           pullAllFromCloud({ mode: 'merge' }).catch(err => {
@@ -435,6 +487,7 @@
         }
       });
       const user = await getCurrentUser();
+      debugSync('boot user', user ? 'signed-in' : 'signed-out');
       if (user) {
         setSyncStatus('Synced');
         const appKey = currentPageAppKey();
@@ -460,6 +513,35 @@
       setSyncStatus('Local only');
       warnSync('Background sync did not start. LocalStorage remains active.', err);
     }
+  }
+
+  function installPageFallbackTriggers() {
+    const appKey = currentPageAppKey();
+    if (!appKey || appKey === 'sync') return;
+    ['input', 'change', 'click', 'submit'].forEach(eventName => {
+      document.addEventListener(eventName, () => {
+        schedulePush(appKey);
+      }, true);
+    });
+    window.addEventListener('focus', () => {
+      pullAppFromCloud(appKey, { mode: 'merge' }).catch(err => {
+        warnSync('Could not refresh ' + appKey + ' on focus.', err);
+      });
+    });
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        pullAppFromCloud(appKey, { mode: 'merge' }).catch(err => {
+          warnSync('Could not refresh ' + appKey + ' after visibility change.', err);
+        });
+      }
+    });
+    setInterval(() => {
+      if (!document.hidden) {
+        pullAppFromCloud(appKey, { mode: 'merge' }).catch(err => {
+          warnSync('Could not refresh ' + appKey + ' on interval.', err);
+        });
+      }
+    }, 15000);
   }
 
   const api = {
@@ -496,9 +578,15 @@
   window.saveAppState = saveAppState;
   window.scheduleAutoSync = scheduleAutoSync;
 
+  patchLocalStorage();
+
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', bootBackgroundSync, { once: true });
+    document.addEventListener('DOMContentLoaded', () => {
+      installPageFallbackTriggers();
+      bootBackgroundSync();
+    }, { once: true });
   } else {
+    installPageFallbackTriggers();
     bootBackgroundSync();
   }
 })();
