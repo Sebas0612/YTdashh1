@@ -924,6 +924,10 @@ html, body {
       }
       const incoming = JSON.stringify(normalize(remote[LS_KEY]));
       const local = localStorage.getItem(LS_KEY);
+      if (local) {
+        if (incoming !== local) scheduleSupabaseSave();
+        return;
+      }
       if (incoming === local) return;
       syncSuppressPush = true;
       state = normalize(remote[LS_KEY]);

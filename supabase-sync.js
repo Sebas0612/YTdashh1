@@ -200,20 +200,35 @@
     return out;
   }
 
-  function applyAppState(appKey, data) {
+  function warnSync(message, error) {
+    if (error) console.warn('[dashboard-sync] ' + message, error);
+    else console.warn('[dashboard-sync] ' + message);
+  }
+
+  function isUsefulAppState(appKey, data) {
     if (!data || typeof data !== 'object') return false;
+    return Object.keys(data).some(key => keyBelongsToApp(key, appKey) && data[key] != null);
+  }
+
+  function applyAppState(appKey, data, options) {
+    const mode = options && options.mode === 'replace' ? 'replace' : 'merge';
+    if (!data || typeof data !== 'object') return false;
+    if (mode !== 'replace' && !isUsefulAppState(appKey, data)) return false;
     const keysToManage = allLocalKeys().filter(key => keyBelongsToApp(key, appKey));
     let changed = false;
     suppressStorageSync = true;
     try {
-      keysToManage.forEach(key => {
-        if (!(key in data)) {
-          originalRemoveItem(key);
-          changed = true;
-        }
-      });
+      if (mode === 'replace') {
+        keysToManage.forEach(key => {
+          if (!(key in data)) {
+            originalRemoveItem(key);
+            changed = true;
+          }
+        });
+      }
       Object.keys(data).forEach(key => {
         if (!keyBelongsToApp(key, appKey)) return;
+        if (mode === 'merge' && localStorage.getItem(key) != null) return;
         const incoming = JSON.stringify(data[key]);
         if (localStorage.getItem(key) !== incoming) {
           originalSetItem(key, incoming);
@@ -237,41 +252,69 @@
   }
 
   async function pushAppToCloud(appKey) {
-    const user = await getCurrentUser();
-    if (!user) return null;
-    return saveAppState(appKey, collectAppState(appKey));
+    try {
+      const user = await getCurrentUser();
+      if (!user) return null;
+      return saveAppState(appKey, collectAppState(appKey));
+    } catch (err) {
+      warnSync('Could not push ' + appKey + ' to Supabase. LocalStorage is still saved.', err);
+      return null;
+    }
   }
 
-  async function pullAppFromCloud(appKey) {
-    const user = await getCurrentUser();
-    if (!user) return null;
-    const data = await loadAppState(appKey);
-    if (!data) return null;
-    return applyAppState(appKey, data);
+  async function pullAppFromCloud(appKey, options) {
+    const mode = options && options.mode === 'replace' ? 'replace' : 'merge';
+    try {
+      const user = await getCurrentUser();
+      if (!user) return null;
+      const data = await loadAppState(appKey);
+      if (!isUsefulAppState(appKey, data)) {
+        if (Object.keys(collectAppState(appKey)).length) schedulePush(appKey);
+        return null;
+      }
+      return applyAppState(appKey, data, { mode });
+    } catch (err) {
+      warnSync('Could not pull ' + appKey + ' from Supabase. LocalStorage was left untouched.', err);
+      return null;
+    }
   }
 
   async function pushAllToCloud() {
-    const user = await getCurrentUser();
-    if (!user) return { ok: false, reason: 'not-signed-in' };
-    for (const appKey of APP_KEYS) await saveAppState(appKey, collectAppState(appKey));
-    return { ok: true };
+    try {
+      const user = await getCurrentUser();
+      if (!user) return { ok: false, reason: 'not-signed-in' };
+      for (const appKey of APP_KEYS) await saveAppState(appKey, collectAppState(appKey));
+      return { ok: true };
+    } catch (err) {
+      warnSync('Could not upload all app state to Supabase. LocalStorage is still saved.', err);
+      return { ok: false, reason: 'supabase-error', error: err };
+    }
   }
 
-  async function pullAllFromCloud() {
-    const user = await getCurrentUser();
-    if (!user) return { ok: false, reason: 'not-signed-in' };
-    for (const appKey of APP_KEYS) {
-      const data = await loadAppState(appKey);
-      if (data) applyAppState(appKey, data);
+  async function pullAllFromCloud(options) {
+    const mode = options && options.mode === 'replace' ? 'replace' : 'merge';
+    try {
+      const user = await getCurrentUser();
+      if (!user) return { ok: false, reason: 'not-signed-in' };
+      for (const appKey of APP_KEYS) {
+        const data = await loadAppState(appKey);
+        if (isUsefulAppState(appKey, data)) applyAppState(appKey, data, { mode });
+        else if (mode !== 'replace' && Object.keys(collectAppState(appKey)).length) schedulePush(appKey);
+      }
+      return { ok: true };
+    } catch (err) {
+      warnSync('Could not load cloud data. LocalStorage was left untouched.', err);
+      return { ok: false, reason: 'supabase-error', error: err };
     }
-    return { ok: true };
   }
 
   function schedulePush(appKey) {
     if (!appKey || suppressStorageSync || !isConfigured()) return;
     clearTimeout(timers[appKey]);
     timers[appKey] = setTimeout(() => {
-      pushAppToCloud(appKey).catch(() => {});
+      pushAppToCloud(appKey).catch(err => {
+        warnSync('Could not sync ' + appKey + ' after a local change.', err);
+      });
     }, 600);
   }
 
@@ -310,7 +353,9 @@
       supa.auth.onAuthStateChange((_event, session) => {
         window.dispatchEvent(new CustomEvent('dashboard-sync-auth-changed'));
         if (session && session.user) {
-          pullAllFromCloud().catch(() => {});
+          pullAllFromCloud({ mode: 'merge' }).catch(err => {
+            warnSync('Could not merge cloud data after sign-in.', err);
+          });
         }
       });
       const user = await getCurrentUser();
@@ -318,8 +363,9 @@
         const appKey = currentPageAppKey();
         if (appKey) {
           const data = await loadAppState(appKey);
-          const hash = data ? JSON.stringify(data) : '';
-          const changed = data ? applyAppState(appKey, data) : false;
+          const hash = isUsefulAppState(appKey, data) ? JSON.stringify(data) : '';
+          const changed = hash ? applyAppState(appKey, data, { mode: 'merge' }) : false;
+          if (!hash && Object.keys(collectAppState(appKey)).length) schedulePush(appKey);
           const reloadKey = 'dashboard-sync-reloaded:' + appKey + ':' + window.location.pathname + ':' + hash;
           if (changed && hash && !sessionStorage.getItem(reloadKey)) {
             sessionStorage.setItem(reloadKey, '1');
@@ -327,9 +373,13 @@
             return;
           }
         }
-        pullAllFromCloud().catch(() => {});
+        pullAllFromCloud({ mode: 'merge' }).catch(err => {
+          warnSync('Could not merge cloud data on page load.', err);
+        });
       }
-    } catch (_) {}
+    } catch (err) {
+      warnSync('Background sync did not start. LocalStorage remains active.', err);
+    }
   }
 
   const api = {

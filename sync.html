@@ -218,10 +218,10 @@ button.danger { color: var(--bad); border-color: rgba(255,138,138,0.22); backgro
       const c = credentials();
       const res = await DashboardSync.signInWithPassword(c.email, c.password);
       if (res && res.error) throw res.error;
-      setMsg('authMsg', 'Logged in. Loading cloud data...', 'ok');
-      await DashboardSync.pullAllFromCloud();
+      setMsg('authMsg', 'Logged in. Merging cloud data...', 'ok');
+      await DashboardSync.pullAllFromCloud({ mode: 'merge' });
       await refreshStatus();
-      setMsg('authMsg', 'Logged in and cloud data loaded.', 'ok');
+      setMsg('authMsg', 'Logged in. Cloud data was merged without wiping local data.', 'ok');
     } catch (err) {
       setMsg('authMsg', err && err.message ? err.message : 'Login failed.', 'bad');
     }
@@ -264,7 +264,7 @@ button.danger { color: var(--bad); border-color: rgba(255,138,138,0.22); backgro
   $('pullBtn').addEventListener('click', async () => {
     try {
       setMsg('syncMsg', 'Loading cloud data...');
-      const res = await DashboardSync.pullAllFromCloud();
+      const res = await DashboardSync.pullAllFromCloud({ mode: 'replace' });
       if (!res || !res.ok) throw new Error('Log in first.');
       setMsg('syncMsg', 'Cloud data loaded to this device. Open a dashboard page to see it.', 'ok');
     } catch (err) {
