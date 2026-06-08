@@ -4,18 +4,11 @@
 //     <script src="topbar.js" defer></script>
 // It self-injects HTML + CSS, reads progress from the same
 // localStorage keys the dashboard's tabs already use, and a
-// water "+1" button writes to localStorage and (if configured)
-// pushes a merged update to the Supabase health row so the
-// new bottle appears on every device within ~1 second.
+// water "+1" button writes to localStorage and can also use the
+// shared Supabase sync helper when it is configured.
 // =============================================================
 (function () {
   'use strict';
-
-  // -------- Supabase config (same project as the rest of the dashboard) --------
-  // For your audience's standalone, replace these with placeholders
-  // and have them paste their own values, just like the other pages.
-  const TOPBAR_SUPABASE_URL = 'PASTE-YOUR-SUPABASE-PROJECT-URL-HERE';
-  const TOPBAR_SUPABASE_KEY = 'PASTE-YOUR-SUPABASE-PUBLISHABLE-KEY-HERE';
 
   // -------- CSS --------
   const css = `
@@ -321,25 +314,12 @@ body.topbar-modal-open {
   }
 
   async function pushWaterMergedToSupabase(localWater) {
-    // Only do this when we're NOT on the health page — health page
-    // has its own sync that already detects the localStorage change.
-    if (window.location.pathname.endsWith('/health.html') ||
-        window.location.pathname.endsWith('health.html')) return;
-
-    if (!window.supabase || !TOPBAR_SUPABASE_URL || !TOPBAR_SUPABASE_KEY) return;
-    if (TOPBAR_SUPABASE_URL.indexOf('PASTE-') === 0) return;
-
     try {
-      const supa = window.supabase.createClient(TOPBAR_SUPABASE_URL, TOPBAR_SUPABASE_KEY);
-      const { data } = await supa
-        .from('app_state').select('data').eq('key', 'health').maybeSingle();
-      const current = (data && data.data) || {};
-      const merged = Object.assign({}, current, { po_water_v1: localWater });
-      await supa.from('app_state').upsert(
-        { key: 'health', data: merged, updated_at: new Date().toISOString() },
-        { onConflict: 'key' }
-      );
-    } catch (e) { /* offline — local change will sync next time user visits health */ }
+      if (!window.DashboardSync || !window.DashboardSync.isConfigured()) return;
+      const user = await window.DashboardSync.getCurrentUser();
+      if (!user) return;
+      await window.DashboardSync.saveAppState('water', { po_water_v1: localWater });
+    } catch (e) { /* offline/local-only — keep the localStorage change */ }
   }
 
   function addWater() {
@@ -409,8 +389,17 @@ body.topbar-modal-open {
   }
 
   // -------- Boot --------
+  function ensureSupabaseSyncLoaded() {
+    if (window.DashboardSync || document.querySelector('script[src="supabase-sync.js"]')) return;
+    const script = document.createElement('script');
+    script.src = 'supabase-sync.js';
+    script.async = true;
+    document.head.appendChild(script);
+  }
+
   function boot() {
     injectStyleAndHTML();
+    ensureSupabaseSyncLoaded();
     const btn = document.getElementById('topbarWaterAdd');
     if (btn) btn.addEventListener('click', (e) => { e.preventDefault(); addWater(); });
     render();
