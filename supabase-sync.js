@@ -58,13 +58,20 @@
     return data && data.user ? data.user : null;
   }
 
-  async function signInWithEmail(email) {
+  async function signInWithPassword(email, password) {
     const supa = await getSupabaseClient();
     if (!supa) throw new Error('Supabase is not configured.');
-    return supa.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: window.location.href.split('#')[0] }
-    });
+    return supa.auth.signInWithPassword({ email, password });
+  }
+
+  async function signInWithEmail(email, password) {
+    return signInWithPassword(email, password);
+  }
+
+  async function createAccount(email, password) {
+    const supa = await getSupabaseClient();
+    if (!supa) throw new Error('Supabase is not configured.');
+    return supa.auth.signUp({ email, password });
   }
 
   async function signOut() {
@@ -119,85 +126,22 @@
       });
   }
 
-  function injectAuthUi() {
+  function startBackgroundAuthListener() {
     if (!isConfigured()) return;
-    const topbar = document.getElementById('topbar');
-    if (!topbar || document.getElementById('dashboardSyncAuth')) return;
-
-    const style = document.createElement('style');
-    style.id = 'dashboard-sync-auth-style';
-    style.textContent = `
-.dashboard-sync-auth {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.dashboard-sync-auth button {
-  border: 1px solid rgba(255,255,255,0.10);
-  background: rgba(255,255,255,0.04);
-  color: #FAFAFA;
-  border-radius: 10px;
-  padding: 8px 10px;
-  font: 700 10px/1 -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  cursor: pointer;
-}
-@media (max-width: 480px) {
-  .dashboard-sync-auth button { padding: 7px 8px; font-size: 9px; }
-}
-`;
-    if (!document.getElementById(style.id)) document.head.appendChild(style);
-
-    const wrap = document.createElement('div');
-    wrap.className = 'dashboard-sync-auth';
-    wrap.id = 'dashboardSyncAuth';
-    wrap.innerHTML = '<button type="button" id="dashboardSyncAuthBtn">Sync</button>';
-    topbar.appendChild(wrap);
-
-    const btn = document.getElementById('dashboardSyncAuthBtn');
-    async function refresh() {
-      const user = await getCurrentUser();
-      btn.textContent = user ? 'Logout' : 'Login';
-      btn.title = user ? ('Signed in as ' + (user.email || 'current user')) : 'Sign in with email';
-    }
-    btn.addEventListener('click', async () => {
-      const user = await getCurrentUser();
-      if (user) {
-        await signOut();
+    getSupabaseClient().then((supa) => {
+      if (!supa) return;
+      supa.auth.onAuthStateChange(() => {
         window.dispatchEvent(new CustomEvent('dashboard-sync-auth-changed'));
-        refresh();
-        return;
-      }
-      const email = (window.prompt('Email for magic link / OTP:') || '').trim();
-      if (!email) return;
-      const res = await signInWithEmail(email);
-      if (res && res.error) {
-        window.alert('Login failed: ' + res.error.message);
-      } else {
-        window.alert('Check your email for the login link or OTP.');
-      }
-    });
-    refresh();
+      });
+    }).catch(() => {});
   }
 
   function bootAuthUi() {
     if (!isConfigured()) return;
-    const run = () => {
-      injectAuthUi();
-      if (!document.getElementById('dashboardSyncAuth')) {
-        const obs = new MutationObserver(() => {
-          injectAuthUi();
-          if (document.getElementById('dashboardSyncAuth')) obs.disconnect();
-        });
-        obs.observe(document.body, { childList: true, subtree: true });
-      }
-    };
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', run, { once: true });
+      document.addEventListener('DOMContentLoaded', startBackgroundAuthListener, { once: true });
     } else {
-      run();
+      startBackgroundAuthListener();
     }
   }
 
@@ -205,7 +149,9 @@
     isConfigured,
     getSupabaseClient,
     getCurrentUser,
+    signInWithPassword,
     signInWithEmail,
+    createAccount,
     signOut,
     loadAppState,
     saveAppState
@@ -214,7 +160,9 @@
   window.DashboardSync = api;
   window.getSupabaseClient = getSupabaseClient;
   window.getCurrentUser = getCurrentUser;
+  window.signInWithPassword = signInWithPassword;
   window.signInWithEmail = signInWithEmail;
+  window.createAccount = createAccount;
   window.signOut = signOut;
   window.loadAppState = loadAppState;
   window.saveAppState = saveAppState;
