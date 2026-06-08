@@ -15,6 +15,11 @@
 .topbar {
   position: sticky; top: 0; z-index: 40;
   display: flex; gap: 6px;
+  align-items: center;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
   padding: max(10px, env(safe-area-inset-top)) 14px 10px;
   /* Fully opaque so each page's body background can't bleed through
      and tint the bar a different color. Matches the dashboard's base
@@ -22,9 +27,11 @@
   background: #0a0a0b;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+  scrollbar-width: none;
 }
+.topbar::-webkit-scrollbar { width: 0; height: 0; display: none; }
 .topbar-pill {
-  flex: 1 1 0; min-width: 0;
+  flex: 0 0 auto; min-width: 0;
   display: inline-flex; align-items: center; gap: 8px;
   padding: 8px 12px;
   background: rgba(255, 255, 255, 0.04);
@@ -34,6 +41,7 @@
   color: #FAFAFA;
   -webkit-tap-highlight-color: transparent;
   transition: background 0.15s, border-color 0.15s;
+  white-space: nowrap;
 }
 .topbar-pill:hover { background: rgba(255, 255, 255, 0.07); border-color: rgba(255, 255, 255, 0.10); }
 .topbar-pill-dot {
@@ -56,7 +64,7 @@
   flex-shrink: 0;
 }
 .topbar-pill-count {
-  margin-left: auto;
+  margin-left: 2px;
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   font-size: 12px; font-weight: 700;
   color: #FAFAFA;
@@ -64,11 +72,12 @@
   white-space: nowrap;
 }
 .topbar-water-wrap {
-  flex: 1 1 0; min-width: 0;
+  flex: 0 0 auto; min-width: 0;
   display: flex;
+  white-space: nowrap;
 }
 .topbar-water-pill {
-  flex: 1; min-width: 0;
+  flex: 0 0 auto; min-width: 0;
   display: inline-flex; align-items: center; gap: 8px;
   padding: 8px 12px;
   background: rgba(125, 211, 252, 0.07);
@@ -79,6 +88,7 @@
   color: #FAFAFA;
   -webkit-tap-highlight-color: transparent;
   transition: background 0.15s;
+  white-space: nowrap;
 }
 .topbar-water-pill:hover { background: rgba(125, 211, 252, 0.12); }
 .topbar-water-pill .topbar-pill-dot { background: #7DD3FC; }
@@ -108,9 +118,6 @@
   .topbar-pill-label { font-size: 9px; letter-spacing: 0.10em; }
   .topbar-pill-count { font-size: 11px; }
   .topbar-water-add { width: 32px; font-size: 16px; }
-}
-@media (max-width: 380px) {
-  .topbar-pill-label { display: none; }
 }
 
 /* === Global mobile lockdown ===
