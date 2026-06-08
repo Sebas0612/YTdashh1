@@ -710,6 +710,9 @@ html, body {
   }
   function saveState() {
     try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {}
+    if (window.DashboardSync && window.DashboardSync.scheduleAutoSync) {
+      window.DashboardSync.scheduleAutoSync(SUPABASE_APP_KEY);
+    }
     scheduleSupabaseSave();
   }
   let state = loadState();
@@ -1126,6 +1129,9 @@ html, body {
   $('setReset').addEventListener('click', () => {
     if (!confirm('Wipe ALL water logs and settings? This cannot be undone.')) return;
     localStorage.removeItem(LS_KEY);
+    if (window.DashboardSync && window.DashboardSync.scheduleAutoSync) {
+      window.DashboardSync.scheduleAutoSync(SUPABASE_APP_KEY);
+    }
     state = loadState();
     scheduleSupabaseSave();
     $('setModalBg').classList.remove('show');

@@ -323,9 +323,7 @@ body.topbar-modal-open {
   async function pushWaterMergedToSupabase(localWater) {
     try {
       if (!window.DashboardSync || !window.DashboardSync.isConfigured()) return;
-      const user = await window.DashboardSync.getCurrentUser();
-      if (!user) return;
-      await window.DashboardSync.saveAppState('water', { po_water_v1: localWater });
+      if (window.DashboardSync.scheduleAutoSync) window.DashboardSync.scheduleAutoSync('water');
     } catch (e) { /* offline/local-only — keep the localStorage change */ }
   }
 

@@ -708,11 +708,19 @@ body::after {
   }
   function storeSet(key, value) {
     try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
+    if (window.DashboardSync && window.DashboardSync.scheduleAutoSync) {
+      window.DashboardSync.scheduleAutoSync('home');
+    }
     if (typeof key === 'string' && key.indexOf('goals:') === 0) {
       window.dispatchEvent(new CustomEvent('goals-changed'));
     }
   }
-  function storeDelete(key) { try { localStorage.removeItem(key); } catch (e) {} }
+  function storeDelete(key) {
+    try { localStorage.removeItem(key); } catch (e) {}
+    if (window.DashboardSync && window.DashboardSync.scheduleAutoSync) {
+      window.DashboardSync.scheduleAutoSync('home');
+    }
+  }
   function storeListKeys(prefix) {
     const out = [];
     for (let i = 0; i < localStorage.length; i++) {

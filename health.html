@@ -503,7 +503,12 @@ main {
   'use strict';
 
   const storeGet = (k) => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } };
-  const storeSet = (k, v) => localStorage.setItem(k, JSON.stringify(v));
+  const storeSet = (k, v) => {
+    localStorage.setItem(k, JSON.stringify(v));
+    if (window.DashboardSync && window.DashboardSync.scheduleAutoSync) {
+      window.DashboardSync.scheduleAutoSync('health');
+    }
+  };
 
   function getActiveDate() {
     const now = new Date();

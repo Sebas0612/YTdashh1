@@ -2166,6 +2166,9 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   }
   function storeSet(key, value) {
     try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
+    if (window.DashboardSync && window.DashboardSync.scheduleAutoSync) {
+      window.DashboardSync.scheduleAutoSync('finance');
+    }
   }
 
   // ============================================================

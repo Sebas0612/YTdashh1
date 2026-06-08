@@ -50,10 +50,15 @@
   let sdkPromise = null;
   let booted = false;
   let suppressStorageSync = false;
+  let statusEl = null;
+  let statusTimer = null;
   const timers = {};
 
-  const originalSetItem = localStorage.setItem.bind(localStorage);
-  const originalRemoveItem = localStorage.removeItem.bind(localStorage);
+  const storageProto = Object.getPrototypeOf(localStorage);
+  const nativeSetItem = storageProto && storageProto.setItem ? storageProto.setItem : localStorage.setItem;
+  const nativeRemoveItem = storageProto && storageProto.removeItem ? storageProto.removeItem : localStorage.removeItem;
+  const originalSetItem = function (key, value) { nativeSetItem.call(localStorage, key, value); };
+  const originalRemoveItem = function (key) { nativeRemoveItem.call(localStorage, key); };
 
   function isConfigured() {
     return !!SUPABASE_URL &&
@@ -205,6 +210,49 @@
     else console.warn('[dashboard-sync] ' + message);
   }
 
+  function shouldShowStatus() {
+    const path = (window.location.pathname || '').split('/').pop() || 'index.html';
+    return path !== 'sync.html';
+  }
+
+  function ensureStatusIndicator() {
+    if (!shouldShowStatus() || statusEl || !document.body) return statusEl;
+    const el = document.createElement('div');
+    el.id = 'dashboardSyncStatus';
+    el.setAttribute('aria-live', 'polite');
+    el.style.cssText = [
+      'position:fixed',
+      'right:10px',
+      'bottom:max(10px, env(safe-area-inset-bottom))',
+      'z-index:30',
+      'padding:5px 8px',
+      'border:1px solid rgba(255,255,255,0.08)',
+      'border-radius:999px',
+      'background:rgba(10,10,11,0.72)',
+      'color:rgba(255,255,255,0.46)',
+      'font:700 10px/1 -apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif',
+      'letter-spacing:0.08em',
+      'text-transform:uppercase',
+      'pointer-events:none',
+      'backdrop-filter:blur(10px)'
+    ].join(';');
+    document.body.appendChild(el);
+    statusEl = el;
+    return statusEl;
+  }
+
+  function setSyncStatus(text) {
+    const el = ensureStatusIndicator();
+    if (!el) return;
+    el.textContent = text;
+    clearTimeout(statusTimer);
+    if (text === 'Synced') {
+      statusTimer = setTimeout(() => {
+        if (statusEl && statusEl.textContent === 'Synced') statusEl.textContent = '';
+      }, 2500);
+    }
+  }
+
   function isUsefulAppState(appKey, data) {
     if (!data || typeof data !== 'object') return false;
     return Object.keys(data).some(key => keyBelongsToApp(key, appKey) && data[key] != null);
@@ -254,9 +302,17 @@
   async function pushAppToCloud(appKey) {
     try {
       const user = await getCurrentUser();
-      if (!user) return null;
-      return saveAppState(appKey, collectAppState(appKey));
+      if (!user) {
+        setSyncStatus('Local only');
+        return null;
+      }
+      setSyncStatus('Syncing...');
+      const result = await saveAppState(appKey, collectAppState(appKey));
+      if (result && result.error) throw result.error;
+      setSyncStatus('Synced');
+      return result;
     } catch (err) {
+      setSyncStatus('Local only');
       warnSync('Could not push ' + appKey + ' to Supabase. LocalStorage is still saved.', err);
       return null;
     }
@@ -310,27 +366,43 @@
 
   function schedulePush(appKey) {
     if (!appKey || suppressStorageSync || !isConfigured()) return;
+    setSyncStatus('Syncing...');
     clearTimeout(timers[appKey]);
     timers[appKey] = setTimeout(() => {
       pushAppToCloud(appKey).catch(err => {
+        setSyncStatus('Local only');
         warnSync('Could not sync ' + appKey + ' after a local change.', err);
       });
     }, 600);
   }
 
+  function scheduleAutoSync(appKey) {
+    schedulePush(appKey);
+  }
+
   function patchLocalStorage() {
-    if (localStorage.__dashboardSyncPatched) return;
-    localStorage.setItem = function (key, value) {
-      originalSetItem(key, value);
-      schedulePush(appForStorageKey(key));
+    if (window.__dashboardSyncPatched) return;
+    const patchedSetItem = function (key, value) {
+      nativeSetItem.call(this, key, value);
+      if (this === localStorage) schedulePush(appForStorageKey(String(key)));
     };
-    localStorage.removeItem = function (key) {
-      originalRemoveItem(key);
-      schedulePush(appForStorageKey(key));
+    const patchedRemoveItem = function (key) {
+      nativeRemoveItem.call(this, key);
+      if (this === localStorage) schedulePush(appForStorageKey(String(key)));
     };
     try {
-      Object.defineProperty(localStorage, '__dashboardSyncPatched', { value: true });
-    } catch (_) {}
+      if (!storageProto) throw new Error('Storage prototype is not available.');
+      storageProto.setItem = patchedSetItem;
+      storageProto.removeItem = patchedRemoveItem;
+    } catch (_) {
+      try {
+        localStorage.setItem = patchedSetItem.bind(localStorage);
+        localStorage.removeItem = patchedRemoveItem.bind(localStorage);
+      } catch (err) {
+        warnSync('Could not patch localStorage for automatic sync.', err);
+      }
+    }
+    window.__dashboardSyncPatched = true;
   }
 
   function currentPageAppKey() {
@@ -344,9 +416,13 @@
   }
 
   async function bootBackgroundSync() {
-    if (booted || !isConfigured()) return;
+    if (booted) return;
     booted = true;
     patchLocalStorage();
+    if (!isConfigured()) {
+      setSyncStatus('Local only');
+      return;
+    }
     try {
       const supa = await getSupabaseClient();
       if (!supa) return;
@@ -360,6 +436,7 @@
       });
       const user = await getCurrentUser();
       if (user) {
+        setSyncStatus('Synced');
         const appKey = currentPageAppKey();
         if (appKey) {
           const data = await loadAppState(appKey);
@@ -376,8 +453,11 @@
         pullAllFromCloud({ mode: 'merge' }).catch(err => {
           warnSync('Could not merge cloud data on page load.', err);
         });
+      } else {
+        setSyncStatus('Local only');
       }
     } catch (err) {
+      setSyncStatus('Local only');
       warnSync('Background sync did not start. LocalStorage remains active.', err);
     }
   }
@@ -397,6 +477,7 @@
     collectAppState,
     collectAllAppStates,
     applyAppState,
+    scheduleAutoSync,
     pushAppToCloud,
     pullAppFromCloud,
     pushAllToCloud,
@@ -413,6 +494,7 @@
   window.signOut = signOut;
   window.loadAppState = loadAppState;
   window.saveAppState = saveAppState;
+  window.scheduleAutoSync = scheduleAutoSync;
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', bootBackgroundSync, { once: true });

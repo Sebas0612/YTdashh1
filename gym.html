@@ -954,6 +954,9 @@ button { -webkit-tap-highlight-color: transparent; }
   }
   function saveRaw(s) {
     try { localStorage.setItem(LS_KEY, JSON.stringify(s)); } catch (_) {}
+    if (window.DashboardSync && window.DashboardSync.scheduleAutoSync) {
+      window.DashboardSync.scheduleAutoSync('gym');
+    }
   }
   function save() {
     saveRaw(state);
