@@ -19,10 +19,14 @@ Open any `.html` file directly in your browser — no build step, no install.
 | [po-water.html](po-water.html) | Water intake tracker |
 | [finance.html](finance.html) | Finances |
 | [gym.html](gym.html) | Progressive overload gym tracker |
+| [sync.html](sync.html) | Hidden Supabase sync setup page |
 | [topbar.js](topbar.js) | Shared top bar — auto-injected into pages that `<script src="topbar.js">` |
 
-Each app stores its own state in browser `localStorage`. No accounts, no server.
+Each app stores its own state in browser `localStorage` by default.
+
+Optional: open [sync.html](sync.html) to sign in and sync local dashboard data between devices.
 
 ## Building from scratch
 
 [BUILD_DASHBOARD.md](BUILD_DASHBOARD.md) is the prompt I gave Claude to generate `index.html` — paste it into Claude if you want to rebuild that page yourself.
+

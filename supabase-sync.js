@@ -1,7 +1,6 @@
 // =============================================================
-// Shared Supabase auth + app_state helpers.
-// Paste your public Supabase project URL and anon key below.
-// These are browser-safe public values. Never use a service_role key here.
+// Hidden Supabase auth + full-dashboard app_state sync.
+// Normal pages never render login UI. Use sync.html to sign in/out.
 // =============================================================
 (function () {
   'use strict';
@@ -10,8 +9,51 @@
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVoaXRibWJlcmlycm1pdmR3Y2hyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5NDIxNDYsImV4cCI6MjA5NjUxODE0Nn0.tkkyTjsrO22feA7HElTAIziYutfQAKH0fdCo21FZNQo';
   const SUPABASE_CDN = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
 
+  const APP_KEYS = ['home', 'health', 'water', 'finance', 'gym'];
+  const APP_STORAGE = {
+    home: {
+      exact: ['goal_streak_v1'],
+      prefixes: ['goals:']
+    },
+    health: {
+      exact: ['stack:items', 'stack:version', 'stack:low'],
+      prefixes: ['stack:taken:']
+    },
+    water: {
+      exact: ['po_water_v1'],
+      prefixes: []
+    },
+    finance: {
+      exact: [
+        'finance_active_tab',
+        'nw_currency',
+        'nw:bank',
+        'nw:stocks',
+        'nw:crypto',
+        'nw:other',
+        'nw:activity',
+        'nw:history',
+        'subs',
+        'wishlist',
+        'incoming_orders',
+        'vinted_resell_v1'
+      ],
+      prefixes: []
+    },
+    gym: {
+      exact: ['po_coach_v1', 'po_coach_workout_done', 'po_coach_weights', 'po_coach_photos'],
+      prefixes: []
+    }
+  };
+
   let client = null;
   let sdkPromise = null;
+  let booted = false;
+  let suppressStorageSync = false;
+  const timers = {};
+
+  const originalSetItem = localStorage.setItem.bind(localStorage);
+  const originalRemoveItem = localStorage.removeItem.bind(localStorage);
 
   function isConfigured() {
     return !!SUPABASE_URL &&
@@ -126,26 +168,173 @@
       });
   }
 
-  function startBackgroundAuthListener() {
-    if (!isConfigured()) return;
-    getSupabaseClient().then((supa) => {
-      if (!supa) return;
-      supa.auth.onAuthStateChange(() => {
-        window.dispatchEvent(new CustomEvent('dashboard-sync-auth-changed'));
-      });
-    }).catch(() => {});
+  function parseStoredValue(key) {
+    const raw = localStorage.getItem(key);
+    if (raw == null) return undefined;
+    try { return JSON.parse(raw); }
+    catch (_) { return raw; }
   }
 
-  function bootAuthUi() {
-    if (!isConfigured()) return;
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', startBackgroundAuthListener, { once: true });
-    } else {
-      startBackgroundAuthListener();
+  function allLocalKeys() {
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i++) keys.push(localStorage.key(i));
+    return keys;
+  }
+
+  function keyBelongsToApp(key, appKey) {
+    const cfg = APP_STORAGE[appKey];
+    if (!cfg || !key) return false;
+    if (cfg.exact.indexOf(key) !== -1) return true;
+    return cfg.prefixes.some(prefix => key.indexOf(prefix) === 0);
+  }
+
+  function appForStorageKey(key) {
+    return APP_KEYS.find(appKey => keyBelongsToApp(key, appKey)) || null;
+  }
+
+  function collectAppState(appKey) {
+    const out = {};
+    allLocalKeys().forEach(key => {
+      if (keyBelongsToApp(key, appKey)) out[key] = parseStoredValue(key);
+    });
+    return out;
+  }
+
+  function applyAppState(appKey, data) {
+    if (!data || typeof data !== 'object') return false;
+    const keysToManage = allLocalKeys().filter(key => keyBelongsToApp(key, appKey));
+    let changed = false;
+    suppressStorageSync = true;
+    try {
+      keysToManage.forEach(key => {
+        if (!(key in data)) {
+          originalRemoveItem(key);
+          changed = true;
+        }
+      });
+      Object.keys(data).forEach(key => {
+        if (!keyBelongsToApp(key, appKey)) return;
+        const incoming = JSON.stringify(data[key]);
+        if (localStorage.getItem(key) !== incoming) {
+          originalSetItem(key, incoming);
+          changed = true;
+        }
+      });
+    } finally {
+      suppressStorageSync = false;
     }
+    if (changed) {
+      window.dispatchEvent(new CustomEvent('dashboard-sync-local-applied', { detail: { appKey } }));
+      window.dispatchEvent(new Event('storage'));
+    }
+    return changed;
+  }
+
+  function collectAllAppStates() {
+    const out = {};
+    APP_KEYS.forEach(appKey => { out[appKey] = collectAppState(appKey); });
+    return out;
+  }
+
+  async function pushAppToCloud(appKey) {
+    const user = await getCurrentUser();
+    if (!user) return null;
+    return saveAppState(appKey, collectAppState(appKey));
+  }
+
+  async function pullAppFromCloud(appKey) {
+    const user = await getCurrentUser();
+    if (!user) return null;
+    const data = await loadAppState(appKey);
+    if (!data) return null;
+    return applyAppState(appKey, data);
+  }
+
+  async function pushAllToCloud() {
+    const user = await getCurrentUser();
+    if (!user) return { ok: false, reason: 'not-signed-in' };
+    for (const appKey of APP_KEYS) await saveAppState(appKey, collectAppState(appKey));
+    return { ok: true };
+  }
+
+  async function pullAllFromCloud() {
+    const user = await getCurrentUser();
+    if (!user) return { ok: false, reason: 'not-signed-in' };
+    for (const appKey of APP_KEYS) {
+      const data = await loadAppState(appKey);
+      if (data) applyAppState(appKey, data);
+    }
+    return { ok: true };
+  }
+
+  function schedulePush(appKey) {
+    if (!appKey || suppressStorageSync || !isConfigured()) return;
+    clearTimeout(timers[appKey]);
+    timers[appKey] = setTimeout(() => {
+      pushAppToCloud(appKey).catch(() => {});
+    }, 600);
+  }
+
+  function patchLocalStorage() {
+    if (localStorage.__dashboardSyncPatched) return;
+    localStorage.setItem = function (key, value) {
+      originalSetItem(key, value);
+      schedulePush(appForStorageKey(key));
+    };
+    localStorage.removeItem = function (key) {
+      originalRemoveItem(key);
+      schedulePush(appForStorageKey(key));
+    };
+    try {
+      Object.defineProperty(localStorage, '__dashboardSyncPatched', { value: true });
+    } catch (_) {}
+  }
+
+  function currentPageAppKey() {
+    const path = (window.location.pathname || '').split('/').pop() || 'index.html';
+    if (path === 'index.html' || path === '') return 'home';
+    if (path === 'health.html') return 'health';
+    if (path === 'po-water.html') return 'water';
+    if (path === 'finance.html') return 'finance';
+    if (path === 'gym.html') return 'gym';
+    return null;
+  }
+
+  async function bootBackgroundSync() {
+    if (booted || !isConfigured()) return;
+    booted = true;
+    patchLocalStorage();
+    try {
+      const supa = await getSupabaseClient();
+      if (!supa) return;
+      supa.auth.onAuthStateChange((_event, session) => {
+        window.dispatchEvent(new CustomEvent('dashboard-sync-auth-changed'));
+        if (session && session.user) {
+          pullAllFromCloud().catch(() => {});
+        }
+      });
+      const user = await getCurrentUser();
+      if (user) {
+        const appKey = currentPageAppKey();
+        if (appKey) {
+          const data = await loadAppState(appKey);
+          const hash = data ? JSON.stringify(data) : '';
+          const changed = data ? applyAppState(appKey, data) : false;
+          const reloadKey = 'dashboard-sync-reloaded:' + appKey + ':' + window.location.pathname + ':' + hash;
+          if (changed && hash && !sessionStorage.getItem(reloadKey)) {
+            sessionStorage.setItem(reloadKey, '1');
+            window.location.reload();
+            return;
+          }
+        }
+        pullAllFromCloud().catch(() => {});
+      }
+    } catch (_) {}
   }
 
   const api = {
+    APP_KEYS,
+    APP_STORAGE,
     isConfigured,
     getSupabaseClient,
     getCurrentUser,
@@ -154,7 +343,15 @@
     createAccount,
     signOut,
     loadAppState,
-    saveAppState
+    saveAppState,
+    collectAppState,
+    collectAllAppStates,
+    applyAppState,
+    pushAppToCloud,
+    pullAppFromCloud,
+    pushAllToCloud,
+    pullAllFromCloud,
+    bootBackgroundSync
   };
 
   window.DashboardSync = api;
@@ -167,5 +364,9 @@
   window.loadAppState = loadAppState;
   window.saveAppState = saveAppState;
 
-  bootAuthUi();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootBackgroundSync, { once: true });
+  } else {
+    bootBackgroundSync();
+  }
 })();

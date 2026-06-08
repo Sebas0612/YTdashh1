@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0a0b">
+<title>Dashboard Sync</title>
+<script src="supabase-sync.js"></script>
+<style>
+:root {
+  --bg: #0a0a0b;
+  --card: #111113;
+  --text: #fafafa;
+  --muted: rgba(255,255,255,0.55);
+  --faint: rgba(255,255,255,0.32);
+  --border: rgba(255,255,255,0.08);
+  --good: #6ee7b7;
+  --bad: #ff8a8a;
+  --info: #7dd3fc;
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: radial-gradient(ellipse 80% 60% at 50% 0%, #17171d 0%, var(--bg) 62%);
+  color: var(--text);
+  padding: max(22px, env(safe-area-inset-top)) 16px max(28px, env(safe-area-inset-bottom));
+}
+.shell {
+  width: min(680px, 100%);
+  margin: 0 auto;
+}
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 13px;
+  margin-bottom: 22px;
+}
+h1 {
+  margin: 0 0 8px;
+  font-size: 32px;
+  line-height: 1.05;
+  letter-spacing: 0;
+}
+.sub {
+  margin: 0 0 22px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.card {
+  background: rgba(17,17,19,0.86);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px;
+  margin-bottom: 14px;
+  box-shadow: 0 16px 40px rgba(0,0,0,0.26);
+}
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+label {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--faint);
+  font-weight: 700;
+  margin-bottom: 7px;
+}
+input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(0,0,0,0.26);
+  color: var(--text);
+  padding: 12px 13px;
+  font: inherit;
+  outline: none;
+}
+input::placeholder { color: rgba(255,255,255,0.28); }
+.actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+button {
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.06);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 11px 13px;
+  font: 700 12px/1 -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+  cursor: pointer;
+}
+button.primary { background: rgba(125,211,252,0.16); border-color: rgba(125,211,252,0.26); }
+button.danger { color: var(--bad); border-color: rgba(255,138,138,0.22); background: rgba(255,138,138,0.08); }
+.status {
+  display: grid;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.status strong { color: var(--text); }
+.msg {
+  min-height: 18px;
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
+}
+.msg.ok { color: var(--good); }
+.msg.bad { color: var(--bad); }
+.app-list {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+.app-pill {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+@media (max-width: 560px) {
+  .grid { grid-template-columns: 1fr; }
+  .app-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  button { width: 100%; }
+}
+</style>
+</head>
+<body>
+<main class="shell">
+  <a class="back" href="index.html">Back to dashboard</a>
+  <h1>Sync</h1>
+  <p class="sub">Sign in once on each device. Normal dashboard pages stay clean and sync quietly in the background when you are signed in.</p>
+
+  <section class="card">
+    <div class="status">
+      <div>Supabase: <strong id="cfgStatus">Checking...</strong></div>
+      <div>Auth: <strong id="authStatus">Checking...</strong></div>
+      <div>Account: <strong id="accountStatus">-</strong></div>
+    </div>
+    <div class="app-list" id="appList"></div>
+  </section>
+
+  <section class="card">
+    <div class="grid">
+      <div>
+        <label for="syncEmail">Email</label>
+        <input id="syncEmail" type="email" autocomplete="email" placeholder="you@example.com">
+      </div>
+      <div>
+        <label for="syncPassword">Password</label>
+        <input id="syncPassword" type="password" autocomplete="current-password" placeholder="Password">
+      </div>
+    </div>
+    <div class="actions">
+      <button class="primary" id="loginBtn" type="button">Log in</button>
+      <button id="createBtn" type="button">Create account</button>
+      <button class="danger" id="logoutBtn" type="button">Log out</button>
+    </div>
+    <div class="msg" id="authMsg" aria-live="polite"></div>
+  </section>
+
+  <section class="card">
+    <div class="actions" style="margin-top:0">
+      <button class="primary" id="pushBtn" type="button">Sync local data to cloud</button>
+      <button id="pullBtn" type="button">Load cloud data to this device</button>
+    </div>
+    <div class="msg" id="syncMsg" aria-live="polite"></div>
+  </section>
+</main>
+
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+
+  function setMsg(id, text, kind) {
+    const el = $(id);
+    el.textContent = text || '';
+    el.classList.remove('ok', 'bad');
+    if (kind) el.classList.add(kind);
+  }
+
+  function credentials() {
+    const email = $('syncEmail').value.trim();
+    const password = $('syncPassword').value;
+    if (!email) throw new Error('Enter your email.');
+    if (!password) throw new Error('Enter your password.');
+    return { email, password };
+  }
+
+  async function refreshStatus() {
+    const sync = window.DashboardSync;
+    $('cfgStatus').textContent = sync && sync.isConfigured() ? 'Configured' : 'Not configured';
+    const user = sync ? await sync.getCurrentUser() : null;
+    $('authStatus').textContent = user ? 'Signed in' : 'Signed out';
+    $('accountStatus').textContent = user && user.email ? user.email : '-';
+    $('appList').innerHTML = (sync ? sync.APP_KEYS : []).map(app =>
+      '<div class="app-pill">' + app + '</div>'
+    ).join('');
+  }
+
+  $('loginBtn').addEventListener('click', async () => {
+    try {
+      setMsg('authMsg', '');
+      const c = credentials();
+      const res = await DashboardSync.signInWithPassword(c.email, c.password);
+      if (res && res.error) throw res.error;
+      setMsg('authMsg', 'Logged in. Loading cloud data...', 'ok');
+      await DashboardSync.pullAllFromCloud();
+      await refreshStatus();
+      setMsg('authMsg', 'Logged in and cloud data loaded.', 'ok');
+    } catch (err) {
+      setMsg('authMsg', err && err.message ? err.message : 'Login failed.', 'bad');
+    }
+  });
+
+  $('createBtn').addEventListener('click', async () => {
+    try {
+      setMsg('authMsg', '');
+      const c = credentials();
+      const res = await DashboardSync.createAccount(c.email, c.password);
+      if (res && res.error) throw res.error;
+      setMsg('authMsg', 'Account created. Confirm your email if Supabase asks for it, then log in.', 'ok');
+      await refreshStatus();
+    } catch (err) {
+      setMsg('authMsg', err && err.message ? err.message : 'Account creation failed.', 'bad');
+    }
+  });
+
+  $('logoutBtn').addEventListener('click', async () => {
+    try {
+      await DashboardSync.signOut();
+      setMsg('authMsg', 'Logged out. Local dashboard data remains on this device.', 'ok');
+      await refreshStatus();
+    } catch (err) {
+      setMsg('authMsg', err && err.message ? err.message : 'Logout failed.', 'bad');
+    }
+  });
+
+  $('pushBtn').addEventListener('click', async () => {
+    try {
+      setMsg('syncMsg', 'Uploading local data...');
+      const res = await DashboardSync.pushAllToCloud();
+      if (!res || !res.ok) throw new Error('Log in first.');
+      setMsg('syncMsg', 'Local data uploaded to cloud.', 'ok');
+    } catch (err) {
+      setMsg('syncMsg', err && err.message ? err.message : 'Upload failed.', 'bad');
+    }
+  });
+
+  $('pullBtn').addEventListener('click', async () => {
+    try {
+      setMsg('syncMsg', 'Loading cloud data...');
+      const res = await DashboardSync.pullAllFromCloud();
+      if (!res || !res.ok) throw new Error('Log in first.');
+      setMsg('syncMsg', 'Cloud data loaded to this device. Open a dashboard page to see it.', 'ok');
+    } catch (err) {
+      setMsg('syncMsg', err && err.message ? err.message : 'Download failed.', 'bad');
+    }
+  });
+
+  window.addEventListener('dashboard-sync-auth-changed', refreshStatus);
+  refreshStatus();
+})();
+</script>
+</body>
+</html>
