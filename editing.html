@@ -12,12 +12,13 @@
 :root {
   --bg: #0A0A0B;
   --bg-deep: #050506;
-  --bg-card: rgba(255, 255, 255, 0.04);
-  --text-primary: #FAFAFA;
-  --text-secondary: #B8B6B0;
-  --text-tertiary: #76746E;
-  --border: transparent;
+  --bg-card: rgba(255, 255, 255, 0.075);
+  --text-primary: #FFFFFF;
+  --text-secondary: #D7D9DD;
+  --text-tertiary: #A4A8B0;
+  --border: rgba(255, 255, 255, 0.13);
   --accent: #E07658;
+  --accent-cyan: #58D7E8;
   --success: #6BE3A4;
   --radius-md: 12px;
   --radius-lg: 16px;
@@ -42,8 +43,9 @@ body::before {
   inset: -10%;
   z-index: -2;
   background:
-    radial-gradient(60% 45% at 82% 14%, rgba(224, 118, 88, 0.16) 0%, transparent 55%),
-    radial-gradient(55% 45% at 18% 90%, rgba(180, 180, 200, 0.06) 0%, transparent 55%),
+    radial-gradient(60% 45% at 82% 14%, rgba(224, 118, 88, 0.18) 0%, transparent 55%),
+    radial-gradient(52% 42% at 18% 86%, rgba(88, 215, 232, 0.10) 0%, transparent 56%),
+    radial-gradient(45% 34% at 48% 5%, rgba(255, 255, 255, 0.045) 0%, transparent 58%),
     linear-gradient(180deg, #0A0A0B 0%, #050506 100%);
   filter: blur(40px) saturate(1.05);
   pointer-events: none;
@@ -71,10 +73,13 @@ body::after {
   gap: 6px;
   padding: 8px 14px 8px 10px;
   margin: 0 0 14px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.08);
+  background: linear-gradient(135deg, rgba(255,255,255,0.12), rgba(255,255,255,0.045));
+  border: 1px solid var(--border);
   border-radius: 999px;
-  color: var(--text-secondary);
+  color: var(--text-primary);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), 0 12px 30px rgba(0,0,0,0.20);
+  backdrop-filter: blur(16px) saturate(1.3);
+  -webkit-backdrop-filter: blur(16px) saturate(1.3);
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -82,7 +87,7 @@ body::after {
   -webkit-tap-highlight-color: transparent;
   transition: background 0.15s ease, color 0.15s ease;
 }
-.back-btn:hover, .back-btn:active { background: rgba(255,255,255,0.07); color: var(--text-primary); }
+.back-btn:hover, .back-btn:active { background: rgba(255,255,255,0.14); color: var(--text-primary); }
 .back-btn svg { display: block; }
 
 .section-title {
@@ -118,10 +123,15 @@ body::after {
   margin-bottom: 14px;
 }
 .stat {
-  background: rgba(255,255,255,0.025);
-  border: 1px solid rgba(255,255,255,0.06);
+  background:
+    linear-gradient(145deg, rgba(255,255,255,0.11), rgba(255,255,255,0.035)),
+    rgba(8,12,14,0.54);
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 14px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.13), 0 18px 42px rgba(0,0,0,0.22);
+  backdrop-filter: blur(18px) saturate(1.25);
+  -webkit-backdrop-filter: blur(18px) saturate(1.25);
 }
 .stat-label {
   font-size: 10px;
@@ -146,10 +156,17 @@ body::after {
   margin-bottom: 14px;
   padding: 14px;
   color: var(--success);
-  background: rgba(255,255,255,0.025);
-  border: 1px solid rgba(255,255,255,0.06);
+  background:
+    radial-gradient(circle at 18% 0%, rgba(88,215,232,0.13), transparent 34%),
+    radial-gradient(circle at 100% 10%, rgba(224,118,88,0.10), transparent 34%),
+    linear-gradient(145deg, rgba(255,255,255,0.095), rgba(255,255,255,0.026)),
+    rgba(7,10,12,0.58);
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   overflow: hidden;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), 0 20px 54px rgba(0,0,0,0.26);
+  backdrop-filter: blur(18px) saturate(1.25);
+  -webkit-backdrop-filter: blur(18px) saturate(1.25);
 }
 .chart-head {
   display: flex;
@@ -162,7 +179,7 @@ body::after {
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
-.chart-label, .chart-range, .axis-label { color: var(--text-tertiary); }
+.chart-label, .chart-range, .axis-label { color: var(--text-secondary); }
 .chart-total { color: var(--success); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .chart-frame {
   display: grid;
@@ -211,11 +228,18 @@ body::after {
 .chart-wrap.has-data .chart-empty { display: none; }
 
 .form-card {
-  background: rgba(255,255,255,0.025);
-  border: 1px solid rgba(255,255,255,0.06);
+  background:
+    radial-gradient(circle at 16% 0%, rgba(88,215,232,0.12), transparent 32%),
+    radial-gradient(circle at 98% 8%, rgba(224,118,88,0.12), transparent 34%),
+    linear-gradient(145deg, rgba(255,255,255,0.105), rgba(255,255,255,0.03)),
+    rgba(8,11,13,0.58);
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 14px;
   margin-bottom: 14px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 22px 58px rgba(0,0,0,0.28);
+  backdrop-filter: blur(20px) saturate(1.28);
+  -webkit-backdrop-filter: blur(20px) saturate(1.28);
 }
 .form-head {
   display: flex;
@@ -228,7 +252,7 @@ body::after {
   font-size: 10px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-weight: 700;
 }
 .form-grid {
@@ -245,28 +269,32 @@ body::after {
   font-size: 10px;
   letter-spacing: 0.10em;
   text-transform: uppercase;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-weight: 700;
 }
 input {
   width: 100%;
   min-width: 0;
-  border: 1px solid rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15);
   border-radius: var(--radius-md);
-  background: rgba(0,0,0,0.22);
+  background: rgba(4,7,9,0.50);
   color: var(--text-primary);
   font-family: inherit;
   font-size: 16px;
   padding: 10px 11px;
   outline: none;
 }
-input::placeholder { color: var(--text-tertiary); }
-input:focus { border-color: rgba(224,118,88,0.36); background: rgba(0,0,0,0.30); }
+input::placeholder { color: #8E939B; }
+input:focus {
+  border-color: rgba(88,215,232,0.46);
+  background: rgba(5,10,12,0.66);
+  box-shadow: 0 0 0 3px rgba(88,215,232,0.08), 0 0 18px rgba(224,118,88,0.10);
+}
 .btn {
-  border: 1px solid rgba(255,255,255,0.10);
-  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.16);
+  background: linear-gradient(145deg, rgba(255,255,255,0.13), rgba(255,255,255,0.045));
   color: var(--text-primary);
-  border-radius: var(--radius-md);
+  border-radius: 999px;
   padding: 10px 12px;
   font-family: inherit;
   font-size: 13px;
@@ -274,12 +302,18 @@ input:focus { border-color: rgba(224,118,88,0.36); background: rgba(0,0,0,0.30);
   cursor: pointer;
   min-height: 42px;
   white-space: nowrap;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.13), 0 10px 28px rgba(0,0,0,0.18);
+  backdrop-filter: blur(14px) saturate(1.25);
+  -webkit-backdrop-filter: blur(14px) saturate(1.25);
 }
-.btn:hover { background: rgba(255,255,255,0.12); }
+.btn:hover { background: rgba(255,255,255,0.16); border-color: rgba(255,255,255,0.24); }
 .btn-primary {
-  border-color: rgba(107,227,164,0.22);
-  background: rgba(107,227,164,0.12);
-  color: #B9F8D5;
+  border-color: rgba(88,215,232,0.32);
+  background:
+    linear-gradient(145deg, rgba(88,215,232,0.20), rgba(224,118,88,0.12)),
+    rgba(255,255,255,0.06);
+  color: #EAFDFF;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), 0 0 26px rgba(88,215,232,0.12), 0 10px 30px rgba(0,0,0,0.22);
 }
 .btn-danger {
   border-color: rgba(255,138,138,0.22);
@@ -294,6 +328,21 @@ input:focus { border-color: rgba(224,118,88,0.36); background: rgba(0,0,0,0.30);
 .form-actions .btn { flex: 1; }
 .edit-only[hidden] { display: none; }
 
+.import-card {
+  display: grid;
+  gap: 10px;
+}
+.import-copy {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.import-status {
+  min-height: 18px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
 .section-h {
   display: flex;
   align-items: baseline;
@@ -304,15 +353,20 @@ input:focus { border-color: rgba(224,118,88,0.36); background: rgba(0,0,0,0.30);
 .entry-count {
   font-family: var(--font-mono);
   font-size: 11px;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
 }
 .table-wrap {
   overflow-x: auto;
   margin-bottom: 14px;
   border-radius: var(--radius-lg);
-  border: 1px solid rgba(255,255,255,0.06);
-  background: rgba(255,255,255,0.018);
+  border: 1px solid var(--border);
+  background:
+    linear-gradient(145deg, rgba(255,255,255,0.085), rgba(255,255,255,0.025)),
+    rgba(7,9,12,0.58);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.11), 0 18px 48px rgba(0,0,0,0.25);
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
 }
 table {
   width: 100%;
@@ -328,7 +382,7 @@ th, td {
   vertical-align: middle;
 }
 th {
-  color: var(--text-tertiary);
+  color: #BFC4CB;
   font-size: 10px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -360,6 +414,7 @@ tr:last-child td { border-bottom: none; }
 .sort-btn.is-desc::after { border-top-color: rgba(255,255,255,0.75); }
 .amount, .mono { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .amount.good { color: var(--success); }
+.mono { color: #E6E8EC; }
 .note-cell {
   max-width: 210px;
   white-space: normal;
@@ -378,7 +433,7 @@ tr:last-child td { border-bottom: none; }
 }
 .empty {
   padding: 14px;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-size: 12px;
   text-align: center;
 }
@@ -483,7 +538,7 @@ tr:last-child td { border-bottom: none; }
       </div>
       <div class="field">
         <label for="timeSpent">Time spent</label>
-        <input type="number" id="timeSpent" min="0" step="0.25" inputmode="decimal" placeholder="Hours">
+        <input type="number" id="timeSpent" min="0" step="0.05" inputmode="decimal" placeholder="Hours">
       </div>
       <div class="field field-wide">
         <label for="entryNote">Optional note</label>
@@ -494,6 +549,12 @@ tr:last-child td { border-bottom: none; }
         <button class="btn edit-only" id="cancelEditBtn" type="button" hidden>Cancel</button>
       </div>
     </form>
+  </section>
+
+  <section class="form-card import-card" aria-label="Import editing overview">
+    <button class="btn btn-primary" id="importOverviewBtn" type="button">Import current editing overview</button>
+    <p class="import-copy">Imports the current overview entries once and updates known older mistakes without changing BTW settings or manual entry behavior.</p>
+    <div class="import-status" id="importOverviewStatus" aria-live="polite"></div>
   </section>
 
   <div class="section-h">
@@ -526,6 +587,30 @@ tr:last-child td { border-bottom: none; }
   'use strict';
 
   const LS_KEY = 'editing_income_v1';
+  const CURRENT_OVERVIEW_IMPORT = [
+    { importId: 'current-overview-aymen-x-jesse', clientName: 'Aymen x Jesse', numberOfVideos: 1, pricePerVideoExVat: 90, note: '' },
+    { importId: 'current-overview-aymen-x-stan', clientName: 'Aymen x Stan', numberOfVideos: 1, pricePerVideoExVat: 125, note: '' },
+    { importId: 'current-overview-bart-brinkman', clientName: 'Bart Brinkman', numberOfVideos: 1, pricePerVideoExVat: 25, note: 'Social Clips' },
+    { importId: 'current-overview-bck', clientName: 'BCK', numberOfVideos: 1, pricePerVideoExVat: 25, note: 'Social Clips' },
+    { importId: 'current-overview-bczm', clientName: 'BCZM', numberOfVideos: 2, pricePerVideoExVat: 25, note: 'Social Clips' },
+    { importId: 'current-overview-breure', clientName: 'Breure', numberOfVideos: 1, pricePerVideoExVat: 25, note: 'Social Clips' },
+    { importId: 'current-overview-bruggenman', clientName: 'Bruggenman', numberOfVideos: 4, pricePerVideoExVat: 25, note: 'Social Clips' },
+    { importId: 'current-overview-camping-scheldeoord', clientName: 'Camping Scheldeoord', numberOfVideos: 2, pricePerVideoExVat: 25, note: 'Social Clips' },
+    { importId: 'current-overview-center-parks', clientName: 'Center Parks', numberOfVideos: 12, pricePerVideoExVat: 25, note: 'Social Clips' },
+    { importId: 'current-overview-dek', clientName: 'DEK', numberOfVideos: 17, pricePerVideoExVat: 25, note: 'Social Clips' },
+    { importId: 'current-overview-hanse', clientName: 'Hanse', numberOfVideos: 2, pricePerVideoExVat: 25, note: 'Social Clips' },
+    { importId: 'current-overview-iso-energy', clientName: 'Iso Energy', numberOfVideos: 4, pricePerVideoExVat: 25, note: 'Social Clips' },
+    { importId: 'current-overview-social-clips-zelf', clientName: 'Social Clips zelf', numberOfVideos: 2, pricePerVideoExVat: 25, note: 'Social Clips' },
+    { importId: 'current-overview-top-onion', clientName: 'Top Onion', numberOfVideos: 3, pricePerVideoExVat: 25, note: 'Social Clips' },
+    { importId: 'current-overview-van-geelst', clientName: 'Van Geelst', numberOfVideos: 8, pricePerVideoExVat: 25, note: 'Social Clips' },
+    { importId: 'current-overview-vloergigant', clientName: 'Vloergigant', numberOfVideos: 12, pricePerVideoExVat: 25, note: 'Social Clips' },
+    { importId: 'current-overview-vrijheid-vastgoed', clientName: 'Vrijheid Vastgoed', numberOfVideos: 9, pricePerVideoExVat: 10, note: 'Socialnext', correctionNames: ['Vrijheid Vastgoed'] },
+    { importId: 'current-overview-lotgenoten', clientName: 'Lotgenoten', numberOfVideos: 4, pricePerVideoExVat: 10, note: 'Socialnext', correctionNames: ['Lotgenoten'] },
+    { importId: 'current-overview-colin-x-sasha', clientName: 'Colin x Sasha', numberOfVideos: 1, pricePerVideoExVat: 100, note: '' },
+    { importId: 'current-overview-colin-x-belgie', clientName: 'Colin x belgie', numberOfVideos: 1, pricePerVideoExVat: 120, note: '' },
+    { importId: 'current-overview-tp-detailing', clientName: 'TP Detailing', numberOfVideos: 2, pricePerVideoExVat: 20, note: '', correctionNames: ['TP Detailing', 'TPD Tailing', 'TPD Detailing'] },
+    { importId: 'current-overview-don-kaaklijn', clientName: 'Don Kaaklijn', numberOfVideos: 4, pricePerVideoExVat: 20, note: 'Shorts' }
+  ];
   let editingId = null;
   let sortState = { key: 'date', dir: 'desc' };
 
@@ -574,6 +659,9 @@ tr:last-child td { border-bottom: none; }
     const el = document.getElementById(id);
     if (el) el.value = value == null ? '' : value;
   }
+  function keyText(value) {
+    return String(value == null ? '' : value).trim().toLowerCase().replace(/\s+/g, ' ');
+  }
 
   function defaultState() {
     return { vatPercentage: 21, entries: [] };
@@ -582,6 +670,9 @@ tr:last-child td { border-bottom: none; }
     const numberOfVideos = Math.max(0, Math.floor(Number(entry.numberOfVideos) || 0));
     const pricePerVideoExVat = Math.max(0, Number(entry.pricePerVideoExVat) || 0);
     const vatPercentage = Math.max(0, Number(entry.vatPercentage) || 0);
+    const timeSpent = entry.timeSpent === '' || entry.timeSpent == null
+      ? ''
+      : Math.max(0, Number(entry.timeSpent) || 0);
     const totalExVat = numberOfVideos * pricePerVideoExVat;
     return {
       id: entry.id || id(),
@@ -589,9 +680,10 @@ tr:last-child td { border-bottom: none; }
       clientName: String(entry.clientName || '').trim(),
       numberOfVideos,
       pricePerVideoExVat,
-      timeSpent: Math.max(0, Number(entry.timeSpent) || 0),
+      timeSpent,
       note: String(entry.note || '').trim(),
       vatPercentage,
+      importId: String(entry.importId || '').trim(),
       createdAt: Number(entry.createdAt) || Date.now(),
       updatedAt: Number(entry.updatedAt) || null,
       totalExVat,
@@ -626,7 +718,7 @@ tr:last-child td { border-bottom: none; }
     const totalExVat = entries.reduce((sum, entry) => sum + entry.totalExVat, 0);
     const totalInclVat = totalExVat * (1 + vatPercentage / 100);
     const totalVideos = entries.reduce((sum, entry) => sum + entry.numberOfVideos, 0);
-    const totalTime = entries.reduce((sum, entry) => sum + entry.timeSpent, 0);
+    const totalTime = entries.reduce((sum, entry) => sum + (Number(entry.timeSpent) || 0), 0);
     return {
       totalExVat,
       totalInclVat,
@@ -764,6 +856,76 @@ tr:last-child td { border-bottom: none; }
     renderTable(s.entries, s.vatPercentage);
   }
 
+  function matchesImportShape(entry, item) {
+    return keyText(entry.clientName) === keyText(item.clientName) &&
+      Number(entry.numberOfVideos) === Number(item.numberOfVideos) &&
+      Number(entry.pricePerVideoExVat) === Number(item.pricePerVideoExVat) &&
+      keyText(entry.note) === keyText(item.note);
+  }
+  function updateEntryFromImport(entry, item) {
+    const changed = keyText(entry.clientName) !== keyText(item.clientName) ||
+      Number(entry.numberOfVideos) !== Number(item.numberOfVideos) ||
+      Number(entry.pricePerVideoExVat) !== Number(item.pricePerVideoExVat) ||
+      keyText(entry.note) !== keyText(item.note) ||
+      entry.timeSpent !== '' ||
+      entry.importId !== item.importId;
+    return normalizeEntry(Object.assign({}, entry, {
+      clientName: item.clientName,
+      numberOfVideos: item.numberOfVideos,
+      pricePerVideoExVat: item.pricePerVideoExVat,
+      timeSpent: '',
+      note: item.note,
+      importId: item.importId,
+      updatedAt: changed ? Date.now() : entry.updatedAt
+    }));
+  }
+  function importCurrentOverview() {
+    const s = state();
+    const date = today();
+    const createdAt = Date.now();
+    let added = 0;
+    let updated = 0;
+    CURRENT_OVERVIEW_IMPORT.forEach((item, index) => {
+      const existingByImportId = s.entries.find(entry => entry.importId === item.importId);
+      const existingByShape = s.entries.find(entry => matchesImportShape(entry, item));
+      const correctionNames = (item.correctionNames || []).map(keyText);
+      const existingCorrection = correctionNames.length
+        ? s.entries.find(entry => correctionNames.includes(keyText(entry.clientName)))
+        : null;
+      const existing = existingByImportId || existingByShape || existingCorrection;
+
+      if (existing) {
+        const corrected = updateEntryFromImport(existing, item);
+        const changed = JSON.stringify(existing) !== JSON.stringify(corrected);
+        s.entries = s.entries.map(entry => entry.id === existing.id ? corrected : entry);
+        if (changed) updated++;
+        return;
+      }
+
+      s.entries.push(normalizeEntry({
+        id: id(),
+        date,
+        clientName: item.clientName,
+        numberOfVideos: item.numberOfVideos,
+        pricePerVideoExVat: item.pricePerVideoExVat,
+        timeSpent: '',
+        note: item.note,
+        vatPercentage: s.vatPercentage,
+        importId: item.importId,
+        createdAt: createdAt + index,
+        updatedAt: null
+      }));
+      added++;
+    });
+    if (added || updated) {
+      save(s);
+      render();
+    }
+    setText('importOverviewStatus', added || updated
+      ? 'Imported ' + added + ' new entries and updated ' + updated + ' existing entries.'
+      : 'Current editing overview is already imported.');
+  }
+
   function resetForm() {
     editingId = null;
     setText('formTitle', 'Add editing income');
@@ -869,6 +1031,7 @@ tr:last-child td { border-bottom: none; }
   document.getElementById('entryDate').value = today();
   document.getElementById('entryForm').addEventListener('submit', submitEntry);
   document.getElementById('cancelEditBtn').addEventListener('click', () => { resetForm(); render(); });
+  document.getElementById('importOverviewBtn').addEventListener('click', importCurrentOverview);
   document.getElementById('vatPercentage').addEventListener('change', saveVatSetting);
   document.querySelector('.table-wrap').addEventListener('click', handleAction);
   document.querySelector('thead').addEventListener('click', handleSort);
