@@ -3720,15 +3720,99 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   }
   function vState() {
     const raw = storeGet(VINTED_KEY) || {};
-    return {
+    const s = {
       batches: Array.isArray(raw.batches) ? raw.batches : [],
       items: Array.isArray(raw.items) ? raw.items : [],
       sales: Array.isArray(raw.sales) ? raw.sales : [],
       expenses: Array.isArray(raw.expenses) ? raw.expenses : [],
       transactions: Array.isArray(raw.transactions) ? raw.transactions : []
     };
+    if (vRepairInventoryMatches(s)) storeSet(VINTED_KEY, s);
+    return s;
   }
   function vSave(s) { storeSet(VINTED_KEY, s); }
+  function vBatchSortValue(s, batchId) {
+    const batch = s.batches.find(b => b.id === batchId);
+    return (batch && (batch.date || batch.createdAt)) || '';
+  }
+  function vInventoryFifo(s) {
+    return s.items.map((item, index) => ({ item, index })).sort((a, b) =>
+      String(vBatchSortValue(s, a.item.batchId)).localeCompare(String(vBatchSortValue(s, b.item.batchId))) ||
+      ((Number(a.item.createdAt) || 0) - (Number(b.item.createdAt) || 0)) ||
+      (a.index - b.index)
+    ).map(x => x.item);
+  }
+  function vSaleFifo(s) {
+    return s.sales.slice().sort((a, b) =>
+      String(a.date || '').localeCompare(String(b.date || '')) ||
+      ((Number(a.createdAt) || 0) - (Number(b.createdAt) || 0))
+    );
+  }
+  function vSetSaleMatch(sale, item) {
+    let changed = false;
+    if (item) {
+      if (sale.itemId !== item.id) { sale.itemId = item.id; changed = true; }
+      if (sale.manualUnmatched) { sale.manualUnmatched = false; changed = true; }
+      if (sale.matchStatus !== 'matched') { sale.matchStatus = 'matched'; changed = true; }
+      if (item.status !== 'sold') { item.status = 'sold'; changed = true; }
+      if (item.saleId !== sale.id) { item.saleId = sale.id; changed = true; }
+    } else {
+      if (sale.itemId) { sale.itemId = null; changed = true; }
+      if (!sale.manualUnmatched) { sale.manualUnmatched = true; changed = true; }
+      if (sale.matchStatus !== 'manual_unmatched') { sale.matchStatus = 'manual_unmatched'; changed = true; }
+    }
+    return changed;
+  }
+  function vFirstAvailableItem(s, claimed) {
+    return vInventoryFifo(s).find(item => !claimed.has(item.id)) || null;
+  }
+  function vRepairInventoryMatches(s) {
+    let changed = false;
+    const salesById = new Map(s.sales.map(sale => [sale.id, sale]));
+    const itemById = new Map(s.items.map(item => [item.id, item]));
+    const claimedItems = new Set();
+    const linkedSales = new Set();
+
+    function claim(sale, item) {
+      claimedItems.add(item.id);
+      linkedSales.add(sale.id);
+      changed = vSetSaleMatch(sale, item) || changed;
+    }
+
+    vSaleFifo(s).forEach(sale => {
+      const item = sale.itemId ? itemById.get(sale.itemId) : null;
+      if (item && !claimedItems.has(item.id)) claim(sale, item);
+      else if (sale.itemId) {
+        sale.itemId = null;
+        changed = true;
+      }
+    });
+
+    vInventoryFifo(s).forEach(item => {
+      const sale = item.saleId ? salesById.get(item.saleId) : null;
+      if (sale && !linkedSales.has(sale.id) && !claimedItems.has(item.id)) claim(sale, item);
+    });
+
+    vSaleFifo(s).forEach(sale => {
+      if (linkedSales.has(sale.id)) return;
+      const item = vFirstAvailableItem(s, claimedItems);
+      if (item) claim(sale, item);
+      else changed = vSetSaleMatch(sale, null) || changed;
+    });
+
+    s.items.forEach(item => {
+      if (claimedItems.has(item.id)) return;
+      if (item.status !== 'unsold') { item.status = 'unsold'; changed = true; }
+      if (item.saleId) { item.saleId = null; changed = true; }
+    });
+
+    return changed;
+  }
+  function vMatchSaleToInventory(s, sale) {
+    const claimed = new Set(s.items.filter(item => item.status === 'sold' && item.saleId).map(item => item.id));
+    const item = vFirstAvailableItem(s, claimed);
+    vSetSaleMatch(sale, item);
+  }
   function vBatchTitle(s, id) {
     const b = s.batches.find(x => x.id === id);
     return b ? (b.title || 'Batch') : 'Batch';
@@ -3792,9 +3876,10 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     const totalRevenue = s.sales.reduce((sum, sale) => sum + vSaleAmount(sale), 0);
     const balance = totalRevenue - totalInvested;
     const unsold = s.items.filter(i => i.status !== 'sold');
-    const sold = s.items.filter(i => i.status === 'sold');
+    const sold = s.sales.slice();
+    const soldInventory = s.items.filter(i => i.status === 'sold');
     const unsoldValue = unsold.reduce((sum, i) => sum + (Number(i.cost) || 0), 0);
-    return { totalInvested, totalRevenue, balance, realizedProfit: balance, unsoldValue, unsold, sold };
+    return { totalInvested, totalRevenue, balance, realizedProfit: balance, unsoldValue, unsold, sold, soldInventory };
   }
   function vSortedTransactions(s) {
     return vCashflowEvents(s).sort((a, b) =>
@@ -3936,6 +4021,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     const id = vId('vs');
     const createdAt = Date.now();
     const sale = { id, date: vDate('vSaleDate'), itemName, salePrice, note, createdAt };
+    vMatchSaleToInventory(s, sale);
     s.sales.push(sale);
     s.transactions.push({ id: vId('vt'), date: sale.date, type: 'sale', refId: id, description: itemName, amount: salePrice, createdAt });
     vSave(s);
