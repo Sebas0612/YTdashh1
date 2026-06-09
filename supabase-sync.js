@@ -36,7 +36,8 @@
         'subs',
         'wishlist',
         'incoming_orders',
-        'vinted_resell_v1'
+        'vinted_resell_v1',
+        'bux_portfolio_v1'
       ],
       prefixes: []
     },

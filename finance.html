@@ -1730,13 +1730,102 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   font-size: 12px;
   text-align: center;
 }
+.bux-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.bux-file-label {
+  position: relative;
+  overflow: hidden;
+}
+.bux-file-label input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.bux-status {
+  flex: 1 1 220px;
+  min-height: 18px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.bux-warning { color: var(--warning); }
+.bux-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(138px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.bux-compare {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.bux-bars {
+  display: grid;
+  gap: 9px;
+}
+.bux-bar-row {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr) 118px;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.bux-bar-track {
+  min-width: 0;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.06);
+  overflow: hidden;
+}
+.bux-bar-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(107,227,164,0.72), rgba(224,118,88,0.78));
+}
+.bux-symbol-input {
+  width: 130px;
+  min-width: 120px;
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 8px;
+  background: rgba(0,0,0,0.28);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 7px 8px;
+  outline: none;
+}
+.bux-symbol-input:focus { border-color: rgba(224,118,88,0.45); }
+.bux-table-wrap { margin-bottom: 14px; }
+.bux-table { min-width: 1120px; }
+.bux-tx-table { min-width: 860px; }
+.bux-chart-wrap { margin-bottom: 14px; color: var(--success); }
+.bux-chart-wrap.is-negative { color: var(--danger); }
+.bux-chart-wrap.has-data .nw-chart-empty { display: none; }
+.bux-amount.good { color: var(--success); }
+.bux-amount.bad { color: var(--danger); }
 @media (max-width: 900px) {
   .vinted-form-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 600px) {
   .vinted-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .bux-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .vinted-stat { padding: 12px; }
   .vinted-stat-value { font-size: 19px; }
+  .bux-toolbar { align-items: stretch; }
+  .bux-toolbar .vinted-btn,
+  .bux-toolbar .bux-file-label { width: 100%; justify-content: center; }
+  .bux-bar-row { grid-template-columns: 1fr; gap: 5px; }
+  .bux-symbol-input { font-size: 16px; }
 }
 </style>
 </head>
@@ -2128,6 +2217,83 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   </div>
 </div>
 
+<!-- ===== BUX PORTFOLIO ===== -->
+<div class="section" data-section="bux">
+  <div class="section-title">
+    <span class="section-title-text">BUX</span>
+  </div>
+
+  <div class="bux-toolbar">
+    <label class="vinted-btn bux-file-label">
+      <span>Import BUX CSV</span>
+      <input type="file" id="buxCsvInput" accept=".csv,text/csv">
+    </label>
+    <button class="vinted-btn" id="buxRefreshBtn" type="button">Refresh prices</button>
+    <button class="vinted-btn vinted-delete" id="buxResetBtn" type="button">Reset BUX data</button>
+    <div class="bux-status" id="buxStatus">Import your BUX transaction export to calculate holdings.</div>
+  </div>
+
+  <div class="bux-summary-grid">
+    <div class="vinted-stat"><div class="vinted-stat-label">Current portfolio value</div><div class="vinted-stat-value" id="buxCurrentValue">EUR 0.00</div></div>
+    <div class="vinted-stat"><div class="vinted-stat-label">Total invested</div><div class="vinted-stat-value" id="buxTotalInvested">EUR 0.00</div></div>
+    <div class="vinted-stat"><div class="vinted-stat-label">Gain/loss EUR</div><div class="vinted-stat-value" id="buxGainLoss">EUR 0.00</div></div>
+    <div class="vinted-stat"><div class="vinted-stat-label">Gain/loss %</div><div class="vinted-stat-value" id="buxGainLossPct">0.00%</div></div>
+    <div class="vinted-stat"><div class="vinted-stat-label">Holdings</div><div class="vinted-stat-value" id="buxHoldingCount">0</div></div>
+    <div class="vinted-stat"><div class="vinted-stat-label">Last price update</div><div class="vinted-stat-value" id="buxLastUpdate">Never</div></div>
+  </div>
+
+  <div class="card bux-compare">
+    <div class="nw-chart-head">
+      <span class="nw-chart-label">Invested vs current value</span>
+      <span class="nw-chart-delta" id="buxCompareDelta">EUR 0.00</span>
+    </div>
+    <div class="bux-bars">
+      <div class="bux-bar-row"><span>Invested</span><div class="bux-bar-track"><div class="bux-bar-fill" id="buxInvestedBar"></div></div><span id="buxInvestedBarValue">EUR 0.00</span></div>
+      <div class="bux-bar-row"><span>Current</span><div class="bux-bar-track"><div class="bux-bar-fill" id="buxCurrentBar"></div></div><span id="buxCurrentBarValue">EUR 0.00</span></div>
+    </div>
+  </div>
+
+  <div class="nw-chart-wrap bux-chart-wrap" id="buxChartWrap">
+    <div class="nw-chart-head">
+      <span class="nw-chart-label">Portfolio snapshots</span>
+      <span class="nw-chart-delta" id="buxChartDelta">EUR 0.00</span>
+    </div>
+    <svg class="nw-chart-svg" id="buxChartSvg" viewBox="0 0 600 200" preserveAspectRatio="none" aria-hidden="true">
+      <defs>
+        <linearGradient id="buxChartGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="currentColor" stop-opacity="0.55"/>
+          <stop offset="60%" stop-color="currentColor" stop-opacity="0.18"/>
+          <stop offset="100%" stop-color="currentColor" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <line class="nw-chart-grid" x1="0" x2="600" y1="40" y2="40"/>
+      <line class="nw-chart-grid" x1="0" x2="600" y1="100" y2="100"/>
+      <line class="nw-chart-grid" x1="0" x2="600" y1="160" y2="160"/>
+      <path id="buxChartArea" fill="url(#buxChartGrad)" d=""/>
+      <path id="buxChartLine" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" style="filter: drop-shadow(0 0 6px currentColor)" d=""/>
+    </svg>
+    <div class="nw-chart-empty" id="buxChartEmpty">Refresh prices twice over time to chart portfolio value snapshots.</div>
+  </div>
+
+  <div class="vinted-section-h"><span class="vinted-section-label">Holdings</span><span class="nw-chart-delta" id="buxHoldingsMeta">0 holdings</span></div>
+  <div class="vinted-table-wrap bux-table-wrap">
+    <table class="vinted-table bux-table">
+      <thead><tr><th>Asset</th><th>ISIN</th><th>Quantity</th><th>Avg buy</th><th>Invested</th><th>API symbol</th><th>Current price</th><th>Current value</th><th>Gain/loss</th><th>Gain/loss %</th><th>Last updated</th></tr></thead>
+      <tbody id="buxHoldingsBody"></tbody>
+    </table>
+    <div class="vinted-empty" id="buxHoldingsEmpty">No BUX holdings yet.</div>
+  </div>
+
+  <div class="vinted-section-h"><span class="vinted-section-label">Imported transactions</span><span class="nw-chart-delta" id="buxTxCount">0</span></div>
+  <div class="vinted-table-wrap bux-table-wrap">
+    <table class="vinted-table bux-tx-table">
+      <thead><tr><th>Date</th><th>Type</th><th>Asset</th><th>Quantity</th><th>Price</th><th>Amount</th><th>Currency</th></tr></thead>
+      <tbody id="buxTxBody"></tbody>
+    </table>
+    <div class="vinted-empty" id="buxTxEmpty">No BUX transactions imported.</div>
+  </div>
+</div>
+
 </div>
 
 <!-- ===== BOTTOM TAB BAR ===== -->
@@ -2151,6 +2317,10 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   <button class="bot-tab" data-tab="vinted">
     <span class="bot-tab-icon">V</span>
     <span class="bot-tab-label">Vinted</span>
+  </button>
+  <button class="bot-tab" data-tab="bux">
+    <span class="bot-tab-icon">B</span>
+    <span class="bot-tab-label">BUX</span>
   </button>
 </nav>
 
@@ -2200,11 +2370,12 @@ input[type="date"]::-webkit-calendar-picker-indicator {
       else s.setAttribute('hidden', '');
     });
     storeSet(TAB_KEY, name);
+    if (window.__buxTabChanged) window.__buxTabChanged(name === 'bux');
     window.scrollTo({ top: 0, behavior: 'instant' });
   }
   tabs.forEach(b => b.addEventListener('click', () => setActiveTab(b.dataset.tab)));
   const savedTab = storeGet(TAB_KEY);
-  setActiveTab(savedTab && ['net','subs','incoming','wish','vinted'].includes(savedTab) ? savedTab : 'net');
+  setActiveTab(savedTab && ['net','subs','incoming','wish','vinted','bux'].includes(savedTab) ? savedTab : 'net');
 
   // ============================================================
   // NET WORTH (copied from the main dashboard, verbatim logic)
@@ -3844,6 +4015,478 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     });
   }
   vRender();
+
+  // ============================================================
+  // BUX PORTFOLIO
+  // ============================================================
+  const BUX_KEY = 'bux_portfolio_v1';
+  const BUX_REFRESH_MS = 5 * 60 * 1000;
+  const BUX_DEFAULT_MAPPINGS = {
+    'NL0009272749': { assetName: 'VanEck AEX', displayTicker: 'TDT', yahooSymbol: 'TDT.AS', candidates: ['TDT.AS', 'AS:TDT', 'TDT'] },
+    'IE00BJXRZJ40': { assetName: 'Rize Cybersecurity and Data Privacy', displayTicker: 'CYBR', yahooSymbol: 'CYBR.AS', candidates: ['CYBR.AS', 'AS:CYBR', 'CYBR'] },
+    'IE00BYZK4552': { assetName: 'iShares Automation & Robotics', displayTicker: 'RBOE', yahooSymbol: 'RBOE.AS', alternativeSymbol: '2B76.DE', candidates: ['RBOE.AS', 'AS:RBOE', '2B76.DE', 'DE:2B76', 'RBOE'] },
+    'IE00B5BMR087': { assetName: 'iShares Core S&P 500', displayTicker: 'CSPX', yahooSymbol: 'CSPX.AS', alternativeSymbol: 'SXR8.DE', candidates: ['CSPX.AS', 'AS:CSPX', 'SXR8.DE', 'DE:SXR8', 'CSPX'] },
+    'IE00BK5BCD43': { assetName: 'L&G Artificial Intelligence', displayTicker: 'AIAI', yahooSymbol: 'AIAI.MI', alternativeSymbol: 'XMLD.DE', candidates: ['AIAI.MI', 'MI:AIAI', 'XMLD.DE', 'DE:XMLD', 'AIAI'] },
+    'IE00BGV5VN51': { assetName: 'Xtrackers Artificial Intelligence & Big Data', displayTicker: 'XAIX', yahooSymbol: 'XAIX.DE', candidates: ['XAIX.DE', 'DE:XAIX', 'XAIX'] }
+  };
+  let buxRefreshTimer = null;
+  let buxRefreshInFlight = false;
+  let buxLastFetchStartedAt = 0;
+
+  function buxMoney(v) {
+    const n = Number(v) || 0;
+    const sign = n < 0 ? '-' : '';
+    return sign + 'EUR ' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  function buxPct(v) {
+    const n = Number(v) || 0;
+    return n.toFixed(2) + '%';
+  }
+  function buxQty(v) {
+    const n = Number(v) || 0;
+    return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 6 });
+  }
+  function buxDateTime(ts) {
+    if (!ts) return 'Never';
+    const d = new Date(ts);
+    if (isNaN(d)) return 'Never';
+    return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+  function buxSetText(id, text) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+    return el;
+  }
+  function buxSetAmountClass(el, value) {
+    if (!el) return;
+    el.classList.remove('good', 'bad');
+    if (value > 0) el.classList.add('good');
+    if (value < 0) el.classList.add('bad');
+  }
+  function buxDefaultState() {
+    return { transactions: [], holdings: [], totalInvested: 0, cashBalance: null, mappings: {}, prices: {}, snapshots: [], lastImportedAt: null, sourceFilename: '' };
+  }
+  function buxMappingFor(assetId, existing) {
+    const def = BUX_DEFAULT_MAPPINGS[assetId] || {};
+    const saved = existing || {};
+    const candidates = Array.from(new Set([saved.apiSymbol, saved.yahooSymbol, saved.alternativeSymbol].concat(saved.candidates || [], def.candidates || [], def.yahooSymbol || [], def.alternativeSymbol || []).filter(Boolean)));
+    return {
+      assetName: saved.assetName || def.assetName || '',
+      displayTicker: saved.displayTicker || def.displayTicker || '',
+      apiSymbol: saved.apiSymbol || def.yahooSymbol || def.displayTicker || '',
+      yahooSymbol: saved.yahooSymbol || def.yahooSymbol || '',
+      alternativeSymbol: saved.alternativeSymbol || def.alternativeSymbol || '',
+      candidates
+    };
+  }
+  function buxState() {
+    const raw = storeGet(BUX_KEY) || {};
+    const mappings = raw.mappings && typeof raw.mappings === 'object' ? raw.mappings : {};
+    const holdings = Array.isArray(raw.holdings) ? raw.holdings.map(h => ({
+      assetId: String(h.assetId || '').trim(),
+      assetName: String(h.assetName || '').trim(),
+      quantity: Number(h.quantity) || 0,
+      investedAmount: Math.max(0, Number(h.investedAmount) || 0),
+      averageBuyPrice: Math.max(0, Number(h.averageBuyPrice) || 0),
+      currency: h.currency || 'EUR'
+    })).filter(h => h.assetId && h.quantity > 0.000001) : [];
+    holdings.forEach(h => { mappings[h.assetId] = buxMappingFor(h.assetId, mappings[h.assetId]); });
+    return {
+      transactions: Array.isArray(raw.transactions) ? raw.transactions : [],
+      holdings,
+      totalInvested: Math.max(0, Number(raw.totalInvested) || 0),
+      cashBalance: raw.cashBalance == null || raw.cashBalance === '' ? null : Number(raw.cashBalance),
+      mappings,
+      prices: raw.prices && typeof raw.prices === 'object' ? raw.prices : {},
+      snapshots: Array.isArray(raw.snapshots) ? raw.snapshots : [],
+      lastImportedAt: raw.lastImportedAt || null,
+      sourceFilename: raw.sourceFilename || '',
+      lastPriceRefreshAt: raw.lastPriceRefreshAt || null,
+      lastPriceStatus: raw.lastPriceStatus || ''
+    };
+  }
+  function buxSave(s) {
+    const clean = buxDefaultState();
+    clean.transactions = Array.isArray(s.transactions) ? s.transactions : [];
+    clean.holdings = Array.isArray(s.holdings) ? s.holdings : [];
+    clean.totalInvested = Math.max(0, Number(s.totalInvested) || 0);
+    clean.cashBalance = s.cashBalance == null || isNaN(Number(s.cashBalance)) ? null : Number(s.cashBalance);
+    clean.mappings = s.mappings || {};
+    clean.prices = s.prices || {};
+    clean.snapshots = Array.isArray(s.snapshots) ? s.snapshots.slice(-120) : [];
+    clean.lastImportedAt = s.lastImportedAt || null;
+    clean.sourceFilename = s.sourceFilename || '';
+    clean.lastPriceRefreshAt = s.lastPriceRefreshAt || null;
+    clean.lastPriceStatus = s.lastPriceStatus || '';
+    storeSet(BUX_KEY, clean);
+  }
+  function buxParseNumber(value) {
+    let s = String(value == null ? '' : value).trim();
+    if (!s) return 0;
+    let neg = false;
+    if (/^\(.*\)$/.test(s)) { neg = true; s = s.slice(1, -1); }
+    if (s[0] === '-') { neg = true; s = s.slice(1); }
+    s = s.replace(/[^\d.,]/g, '');
+    const lastComma = s.lastIndexOf(',');
+    const lastDot = s.lastIndexOf('.');
+    if (lastComma > -1 && lastDot > -1) {
+      const dec = lastComma > lastDot ? ',' : '.';
+      const thou = dec === ',' ? '.' : ',';
+      s = s.split(thou).join('').replace(dec, '.');
+    } else if (lastComma > -1) {
+      s = s.replace(',', '.');
+    }
+    const n = parseFloat(s);
+    return (neg ? -1 : 1) * (isNaN(n) ? 0 : n);
+  }
+  function buxParseCsv(text) {
+    const rows = [];
+    let row = [], field = '', quoted = false;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i], next = text[i + 1];
+      if (quoted) {
+        if (ch === '"' && next === '"') { field += '"'; i++; }
+        else if (ch === '"') quoted = false;
+        else field += ch;
+      } else if (ch === '"') quoted = true;
+      else if (ch === ',') { row.push(field); field = ''; }
+      else if (ch === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else if (ch !== '\r') field += ch;
+    }
+    row.push(field);
+    if (row.some(v => String(v).trim())) rows.push(row);
+    if (!rows.length) return [];
+    const headers = rows.shift().map(h => String(h || '').replace(/^\uFEFF/, '').trim());
+    return rows.filter(r => r.some(v => String(v).trim())).map(r => {
+      const out = {};
+      headers.forEach((h, i) => { out[h] = r[i] == null ? '' : r[i]; });
+      return out;
+    });
+  }
+  function buxRowKind(row) {
+    return [row['Transaction Category'], row['Transaction Type'], row['Transfer Type'], row['Transaction Description']]
+      .map(v => String(v || '').toUpperCase().replace(/\s+/g, '_')).join('_');
+  }
+  function buxTxFromRow(row, index) {
+    const kind = buxRowKind(row);
+    const assetId = String(row['Asset Id'] || '').trim();
+    const cashRaw = String(row['Cash Balance Amount'] || '').trim();
+    const cashBalance = cashRaw ? buxParseNumber(cashRaw) : null;
+    return {
+      id: 'csv_' + index + '_' + Math.abs(JSON.stringify(row).split('').reduce((a, c) => ((a << 5) - a) + c.charCodeAt(0), 0)),
+      date: String(row['Transaction Time (CET)'] || '').trim(),
+      category: String(row['Transaction Category'] || '').trim(),
+      type: String(row['Transaction Type'] || row['Transfer Type'] || '').trim(),
+      kind,
+      amount: buxParseNumber(row['Transaction Amount']),
+      currency: String(row['Transaction Currency'] || row['Asset Currency'] || 'EUR').trim() || 'EUR',
+      cashBalance,
+      assetId,
+      assetName: String(row['Asset Name'] || '').trim(),
+      quantity: buxParseNumber(row['Asset Quantity']),
+      price: buxParseNumber(row['Asset Price']),
+      assetCurrency: String(row['Asset Currency'] || 'EUR').trim() || 'EUR',
+      description: String(row['Transaction Description'] || '').trim(),
+      raw: row
+    };
+  }
+  function buxTradeCost(tx) {
+    return Math.abs(Number(tx.amount) || 0) || Math.abs((Number(tx.quantity) || 0) * (Number(tx.price) || 0));
+  }
+  function buxBuildPortfolio(transactions, filename, previous) {
+    const byAsset = {};
+    let cashDebit = 0, cashCredit = 0, hasCashFlow = false, cashBalance = null;
+    transactions.forEach(tx => {
+      if (tx.cashBalance != null && !isNaN(Number(tx.cashBalance))) cashBalance = Number(tx.cashBalance);
+      const kind = tx.kind || '';
+      if (kind.indexOf('CASH_DEBIT') !== -1) { cashDebit += Math.abs(Number(tx.amount) || 0); hasCashFlow = true; return; }
+      if (kind.indexOf('CASH_CREDIT') !== -1) { cashCredit += Math.abs(Number(tx.amount) || 0); hasCashFlow = true; return; }
+      if (!tx.assetId) return;
+      if (!byAsset[tx.assetId]) byAsset[tx.assetId] = { assetId: tx.assetId, assetName: tx.assetName, quantity: 0, investedAmount: 0, currency: tx.assetCurrency || tx.currency || 'EUR' };
+      const h = byAsset[tx.assetId];
+      if (tx.assetName) h.assetName = tx.assetName;
+      const qty = Math.abs(Number(tx.quantity) || 0);
+      if (!qty) return;
+      if (kind.indexOf('ASSET_TRADE_BUY') !== -1 || kind.indexOf('_BUY') !== -1) {
+        h.quantity += qty;
+        h.investedAmount += buxTradeCost(tx);
+      } else if (kind.indexOf('ASSET_TRADE_SELL') !== -1 || kind.indexOf('_SELL') !== -1) {
+        const avg = h.quantity > 0 ? h.investedAmount / h.quantity : 0;
+        h.quantity = Math.max(0, h.quantity - qty);
+        h.investedAmount = Math.max(0, h.investedAmount - avg * qty);
+      }
+    });
+    const holdings = Object.keys(byAsset).map(assetId => {
+      const h = byAsset[assetId];
+      return {
+        assetId,
+        assetName: h.assetName || (BUX_DEFAULT_MAPPINGS[assetId] && BUX_DEFAULT_MAPPINGS[assetId].assetName) || assetId,
+        quantity: h.quantity,
+        investedAmount: h.investedAmount,
+        averageBuyPrice: h.quantity ? h.investedAmount / h.quantity : 0,
+        currency: h.currency || 'EUR'
+      };
+    }).filter(h => h.quantity > 0.000001).sort((a, b) => a.assetName.localeCompare(b.assetName));
+    const mappings = Object.assign({}, previous.mappings || {});
+    holdings.forEach(h => { mappings[h.assetId] = buxMappingFor(h.assetId, mappings[h.assetId]); });
+    const holdingInvested = holdings.reduce((sum, h) => sum + h.investedAmount, 0);
+    return Object.assign({}, previous, {
+      transactions,
+      holdings,
+      totalInvested: hasCashFlow ? Math.max(0, cashDebit - cashCredit) : holdingInvested,
+      cashBalance,
+      mappings,
+      lastImportedAt: new Date().toISOString(),
+      sourceFilename: filename || ''
+    });
+  }
+  function buxCalc(s) {
+    let currentValue = 0, priced = 0;
+    s.holdings.forEach(h => {
+      const p = s.prices[h.assetId];
+      if (p && Number(p.price) > 0) {
+        priced++;
+        currentValue += h.quantity * Number(p.price);
+      }
+    });
+    const invested = Number(s.totalInvested) || s.holdings.reduce((sum, h) => sum + h.investedAmount, 0);
+    const gain = currentValue - invested;
+    return { currentValue, invested, gain, gainPct: invested ? (gain / invested) * 100 : 0, priced };
+  }
+  function buxRenderSummary(s) {
+    const c = buxCalc(s);
+    buxSetText('buxCurrentValue', buxMoney(c.currentValue));
+    buxSetText('buxTotalInvested', buxMoney(c.invested));
+    buxSetAmountClass(buxSetText('buxGainLoss', buxMoney(c.gain)), c.gain);
+    buxSetAmountClass(buxSetText('buxGainLossPct', buxPct(c.gainPct)), c.gain);
+    buxSetText('buxHoldingCount', String(s.holdings.length));
+    buxSetText('buxLastUpdate', buxDateTime(s.lastPriceRefreshAt));
+    buxSetText('buxHoldingsMeta', s.holdings.length + (s.holdings.length === 1 ? ' holding' : ' holdings'));
+    buxSetText('buxCompareDelta', buxMoney(c.gain));
+    buxSetAmountClass(document.getElementById('buxCompareDelta'), c.gain);
+    const max = Math.max(c.invested, c.currentValue, 1);
+    const investedBar = document.getElementById('buxInvestedBar');
+    const currentBar = document.getElementById('buxCurrentBar');
+    if (investedBar) investedBar.style.width = Math.max(2, (c.invested / max) * 100) + '%';
+    if (currentBar) currentBar.style.width = Math.max(2, (c.currentValue / max) * 100) + '%';
+    buxSetText('buxInvestedBarValue', buxMoney(c.invested));
+    buxSetText('buxCurrentBarValue', buxMoney(c.currentValue));
+  }
+  function buxRenderHoldings(s) {
+    const body = document.getElementById('buxHoldingsBody');
+    const empty = document.getElementById('buxHoldingsEmpty');
+    if (body) {
+      body.innerHTML = s.holdings.map(h => {
+        const map = buxMappingFor(h.assetId, s.mappings[h.assetId]);
+        const p = s.prices[h.assetId];
+        const price = p && Number(p.price) > 0 ? Number(p.price) : 0;
+        const value = price ? h.quantity * price : 0;
+        const gain = value - h.investedAmount;
+        const gainPct = h.investedAmount ? (gain / h.investedAmount) * 100 : 0;
+        const priceText = price ? buxMoney(price) : '<span class="bux-warning">No price found, edit symbol.</span>';
+        return '<tr>' +
+          '<td>' + escapeHtml(h.assetName) + '</td>' +
+          '<td class="vinted-amount">' + escapeHtml(h.assetId) + '</td>' +
+          '<td class="vinted-amount">' + buxQty(h.quantity) + '</td>' +
+          '<td class="vinted-amount">' + buxMoney(h.averageBuyPrice) + '</td>' +
+          '<td class="vinted-amount">' + buxMoney(h.investedAmount) + '</td>' +
+          '<td><input class="bux-symbol-input" data-bux-symbol="' + escapeHtml(h.assetId) + '" value="' + escapeHtml(map.apiSymbol || '') + '" placeholder="Symbol"></td>' +
+          '<td class="vinted-amount">' + priceText + '</td>' +
+          '<td class="vinted-amount">' + (price ? buxMoney(value) : '-') + '</td>' +
+          '<td class="vinted-amount bux-amount ' + (gain >= 0 ? 'good' : 'bad') + '">' + (price ? buxMoney(gain) : '-') + '</td>' +
+          '<td class="vinted-amount bux-amount ' + (gain >= 0 ? 'good' : 'bad') + '">' + (price ? buxPct(gainPct) : '-') + '</td>' +
+          '<td>' + escapeHtml(p ? buxDateTime(p.timestamp) : 'Never') + '</td>' +
+        '</tr>';
+      }).join('');
+    }
+    if (empty) empty.style.display = s.holdings.length ? 'none' : 'block';
+  }
+  function buxRenderTransactions(s) {
+    const body = document.getElementById('buxTxBody');
+    const empty = document.getElementById('buxTxEmpty');
+    buxSetText('buxTxCount', String(s.transactions.length));
+    const rows = s.transactions.slice().sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+    if (body) {
+      body.innerHTML = rows.slice(0, 120).map(t => {
+        const type = t.type || t.category || '';
+        return '<tr><td>' + escapeHtml(t.date || '') + '</td><td>' + escapeHtml(type) + '</td><td>' + escapeHtml(t.assetName || t.description || '') + '</td><td class="vinted-amount">' + (t.quantity ? buxQty(t.quantity) : '') + '</td><td class="vinted-amount">' + (t.price ? buxMoney(t.price) : '') + '</td><td class="vinted-amount">' + buxMoney(t.amount) + '</td><td>' + escapeHtml(t.currency || '') + '</td></tr>';
+      }).join('');
+    }
+    if (empty) empty.style.display = rows.length ? 'none' : 'block';
+  }
+  function buxRenderChart(s) {
+    const wrap = document.getElementById('buxChartWrap');
+    const line = document.getElementById('buxChartLine');
+    const area = document.getElementById('buxChartArea');
+    const delta = document.getElementById('buxChartDelta');
+    if (!wrap || !line || !area) return;
+    const snaps = (s.snapshots || []).filter(p => Number(p.currentValue) > 0).slice(-80);
+    if (snaps.length < 2) {
+      wrap.classList.remove('has-data', 'is-negative');
+      line.setAttribute('d', '');
+      area.setAttribute('d', '');
+      if (delta) delta.textContent = snaps.length ? buxMoney(snaps[0].currentValue) : buxMoney(0);
+      return;
+    }
+    const firstV = Number(snaps[0].currentValue) || 0;
+    const lastV = Number(snaps[snaps.length - 1].currentValue) || 0;
+    const diff = lastV - firstV;
+    wrap.classList.add('has-data');
+    wrap.classList.toggle('is-negative', diff < 0);
+    if (delta) {
+      delta.textContent = (diff >= 0 ? '+' : '-') + buxMoney(Math.abs(diff));
+      buxSetAmountClass(delta, diff);
+    }
+    const W = 600, H = 200, pad = 8;
+    const vals = snaps.map(p => Number(p.currentValue) || 0);
+    const minV = Math.min.apply(null, vals);
+    const maxV = Math.max.apply(null, vals);
+    const range = (maxV - minV) || Math.max(1, Math.abs(maxV));
+    const pts = snaps.map((p, i) => ({
+      x: (i / (snaps.length - 1)) * W,
+      y: H - pad - (((Number(p.currentValue) || 0) - minV) / range) * (H - pad * 2)
+    }));
+    const d = nwSmoothPath(pts);
+    const first = pts[0], last = pts[pts.length - 1];
+    line.setAttribute('d', d);
+    area.setAttribute('d', d + ' L' + last.x + ',' + H + ' L' + first.x + ',' + H + ' Z');
+  }
+  function buxRender() {
+    const s = buxState();
+    buxRenderSummary(s);
+    buxRenderHoldings(s);
+    buxRenderTransactions(s);
+    buxRenderChart(s);
+    if (s.lastPriceStatus) buxSetText('buxStatus', s.lastPriceStatus);
+  }
+  function buxHandleCsv(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const rows = buxParseCsv(String(reader.result || ''));
+        if (!rows.length) { buxSetText('buxStatus', 'No CSV rows found.'); return; }
+        const tx = rows.map(buxTxFromRow);
+        const next = buxBuildPortfolio(tx, file.name, buxState());
+        next.lastPriceStatus = 'Imported ' + next.transactions.length + ' transactions from ' + file.name + '.';
+        buxSave(next);
+        buxRender();
+        buxRefreshPrices(false);
+      } catch (err) {
+        buxSetText('buxStatus', 'Could not import CSV. Check the export format.');
+      }
+    };
+    reader.readAsText(file);
+  }
+  function buxQuoteParam(s) {
+    return s.holdings.map(h => {
+      const map = buxMappingFor(h.assetId, s.mappings[h.assetId]);
+      const cands = Array.from(new Set([map.apiSymbol].concat(map.candidates || []).filter(Boolean)));
+      return encodeURIComponent(h.assetId + '~' + cands.join('|'));
+    }).join(',');
+  }
+  function buxAddSnapshot(s) {
+    const c = buxCalc(s);
+    if (c.currentValue <= 0) return;
+    const last = s.snapshots[s.snapshots.length - 1];
+    if (last && Math.abs((Number(last.currentValue) || 0) - c.currentValue) < 0.01 && Date.now() - new Date(last.timestamp).getTime() < 60000) return;
+    s.snapshots.push({ timestamp: new Date().toISOString(), currentValue: c.currentValue, totalInvested: c.invested, gainLoss: c.gain });
+    if (s.snapshots.length > 120) s.snapshots.splice(0, s.snapshots.length - 120);
+  }
+  async function buxRefreshPrices(force) {
+    const s = buxState();
+    if (!s.holdings.length) { buxSetText('buxStatus', 'Import a BUX CSV before refreshing prices.'); return; }
+    if (buxRefreshInFlight) return;
+    if (!force && Date.now() - buxLastFetchStartedAt < 60000) return;
+    buxRefreshInFlight = true;
+    buxLastFetchStartedAt = Date.now();
+    buxSetText('buxStatus', 'Refreshing latest BUX prices...');
+    try {
+      const res = await fetch('/api/quotes?symbols=' + buxQuoteParam(s), { cache: 'no-store' });
+      const data = await res.json();
+      if (data && data.configured === false) {
+        s.lastPriceStatus = 'Live prices not configured yet. Add FINNHUB_API_KEY in Vercel.';
+        buxSave(s);
+        buxRender();
+        return;
+      }
+      if (!res.ok) throw new Error((data && data.error) || 'Quote refresh failed');
+      const quotes = Array.isArray(data.quotes) ? data.quotes : [];
+      let updated = 0;
+      quotes.forEach(q => {
+        if (q && q.requested && Number(q.price) > 0) {
+          s.prices[q.requested] = { symbolUsed: q.symbolUsed, price: Number(q.price), currency: q.currency || 'EUR', timestamp: q.timestamp || new Date().toISOString(), provider: q.provider || 'finnhub' };
+          updated++;
+        }
+      });
+      s.lastPriceRefreshAt = new Date().toISOString();
+      s.lastPriceStatus = updated ? 'Updated live prices for ' + updated + ' holding' + (updated === 1 ? '.' : 's.') : 'No price found, edit symbol.';
+      buxAddSnapshot(s);
+      buxSave(s);
+      buxRender();
+    } catch (err) {
+      const s2 = buxState();
+      s2.lastPriceStatus = 'Price refresh failed. Showing last cached prices where available.';
+      buxSave(s2);
+      buxRender();
+    } finally {
+      buxRefreshInFlight = false;
+    }
+  }
+  function buxStartAutoRefresh() {
+    if (buxRefreshTimer || document.hidden) return;
+    buxRefreshTimer = setInterval(() => {
+      if (!document.hidden && storeGet(TAB_KEY) === 'bux') buxRefreshPrices(false);
+    }, BUX_REFRESH_MS);
+  }
+  function buxStopAutoRefresh() {
+    if (buxRefreshTimer) clearInterval(buxRefreshTimer);
+    buxRefreshTimer = null;
+  }
+  window.__buxTabChanged = function(active) {
+    if (active) {
+      buxRender();
+      buxRefreshPrices(false);
+      buxStartAutoRefresh();
+    } else {
+      buxStopAutoRefresh();
+    }
+  };
+  const buxCsvInput = document.getElementById('buxCsvInput');
+  if (buxCsvInput) buxCsvInput.addEventListener('change', e => {
+    buxHandleCsv(e.target.files && e.target.files[0]);
+    e.target.value = '';
+  });
+  const buxRefreshBtn = document.getElementById('buxRefreshBtn');
+  if (buxRefreshBtn) buxRefreshBtn.addEventListener('click', () => buxRefreshPrices(true));
+  const buxResetBtn = document.getElementById('buxResetBtn');
+  if (buxResetBtn) buxResetBtn.addEventListener('click', () => {
+    if (!confirm('Delete all BUX portfolio data?')) return;
+    buxSave(buxDefaultState());
+    buxRender();
+    buxSetText('buxStatus', 'BUX portfolio data reset.');
+  });
+  const buxSection = document.querySelector('[data-section="bux"]');
+  if (buxSection) {
+    buxSection.addEventListener('change', e => {
+      const input = e.target.closest('[data-bux-symbol]');
+      if (!input) return;
+      const assetId = input.dataset.buxSymbol;
+      const s = buxState();
+      s.mappings[assetId] = buxMappingFor(assetId, s.mappings[assetId]);
+      s.mappings[assetId].apiSymbol = input.value.trim();
+      s.lastPriceStatus = 'Saved symbol mapping for ' + assetId + '.';
+      buxSave(s);
+      buxRender();
+    });
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (storeGet(TAB_KEY) !== 'bux') return;
+    if (document.hidden) buxStopAutoRefresh();
+    else { buxRefreshPrices(false); buxStartAutoRefresh(); }
+  });
+  buxRender();
+  if (storeGet(TAB_KEY) === 'bux') window.__buxTabChanged(true);
 
   // ============================================================
   // FINANCE TICKER — rotates through upcoming subscription renewals
