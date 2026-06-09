@@ -9,7 +9,7 @@
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVoaXRibWJlcmlycm1pdmR3Y2hyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5NDIxNDYsImV4cCI6MjA5NjUxODE0Nn0.tkkyTjsrO22feA7HElTAIziYutfQAKH0fdCo21FZNQo';
   const SUPABASE_CDN = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
 
-  const APP_KEYS = ['home', 'health', 'water', 'finance', 'gym'];
+  const APP_KEYS = ['home', 'health', 'water', 'finance', 'gym', 'editing'];
   const APP_STORAGE = {
     home: {
       exact: ['goal_streak_v1'],
@@ -42,6 +42,10 @@
     },
     gym: {
       exact: ['gym_tracker_v2', 'po_coach_v1', 'po_coach_workout_done', 'po_coach_weights', 'po_coach_photos'],
+      prefixes: []
+    },
+    editing: {
+      exact: ['editing_income_v1'],
       prefixes: []
     }
   };
@@ -464,6 +468,7 @@
     if (path === 'po-water.html') return 'water';
     if (path === 'finance.html') return 'finance';
     if (path === 'gym.html') return 'gym';
+    if (path === 'editing.html') return 'editing';
     return null;
   }
 

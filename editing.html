@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0a0a0b">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Editing Income</title>
+<script src="supabase-sync.js"></script>
+<script src="topbar.js" defer></script>
+<style>
+:root {
+  --bg: #0A0A0B;
+  --bg-deep: #050506;
+  --bg-card: rgba(255, 255, 255, 0.04);
+  --text-primary: #FAFAFA;
+  --text-secondary: #B8B6B0;
+  --text-tertiary: #76746E;
+  --border: transparent;
+  --accent: #E07658;
+  --success: #6BE3A4;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --font: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+  min-height: 100%;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: -10%;
+  z-index: -2;
+  background:
+    radial-gradient(60% 45% at 82% 14%, rgba(224, 118, 88, 0.16) 0%, transparent 55%),
+    radial-gradient(55% 45% at 18% 90%, rgba(180, 180, 200, 0.06) 0%, transparent 55%),
+    linear-gradient(180deg, #0A0A0B 0%, #050506 100%);
+  filter: blur(40px) saturate(1.05);
+  pointer-events: none;
+}
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-image: radial-gradient(rgba(255,255,255,0.014) 1px, transparent 1px);
+  background-size: 3px 3px;
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.shell {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 24px 16px 80px;
+}
+
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px 8px 10px;
+  margin: 0 0 14px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.back-btn:hover, .back-btn:active { background: rgba(255,255,255,0.07); color: var(--text-primary); }
+.back-btn svg { display: block; }
+
+.section-title {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0 18px;
+  color: var(--text-primary);
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+.section-title::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 16px rgba(224,118,88,0.7);
+}
+.section-title::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(255,255,255,0.10), transparent);
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.stat {
+  background: rgba(255,255,255,0.025);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: var(--radius-lg);
+  padding: 14px;
+}
+.stat-label {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  font-weight: 700;
+}
+.stat-value {
+  margin-top: 6px;
+  font-size: 22px;
+  line-height: 1.05;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.stat-value.good { color: var(--success); }
+
+.chart-wrap {
+  position: relative;
+  min-height: 268px;
+  margin-bottom: 14px;
+  padding: 14px;
+  color: var(--success);
+  background: rgba(255,255,255,0.025);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.chart-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: baseline;
+  margin-bottom: 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.chart-label, .chart-range, .axis-label { color: var(--text-tertiary); }
+.chart-total { color: var(--success); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.chart-frame {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  gap: 8px;
+  align-items: stretch;
+}
+.y-axis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 4px 0 21px;
+  min-height: 200px;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+.plot { min-width: 0; }
+.chart-svg {
+  width: 100%;
+  height: 200px;
+  display: block;
+  overflow: visible;
+}
+.chart-grid { stroke: rgba(255,255,255,0.07); stroke-width: 1; }
+.x-axis {
+  display: flex;
+  justify-content: space-between;
+  min-height: 16px;
+  margin-top: 5px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+.chart-empty {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  top: 126px;
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+.chart-wrap.has-data .chart-empty { display: none; }
+
+.form-card {
+  background: rgba(255,255,255,0.025);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: var(--radius-lg);
+  padding: 14px;
+  margin-bottom: 14px;
+}
+.form-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.form-title, .section-label {
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  font-weight: 700;
+}
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.field {
+  display: grid;
+  gap: 5px;
+}
+.field-wide { grid-column: span 2; }
+.field label {
+  font-size: 10px;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  font-weight: 700;
+}
+input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--radius-md);
+  background: rgba(0,0,0,0.22);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 16px;
+  padding: 10px 11px;
+  outline: none;
+}
+input::placeholder { color: var(--text-tertiary); }
+input:focus { border-color: rgba(224,118,88,0.36); background: rgba(0,0,0,0.30); }
+.btn {
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.06);
+  color: var(--text-primary);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  min-height: 42px;
+  white-space: nowrap;
+}
+.btn:hover { background: rgba(255,255,255,0.12); }
+.btn-primary {
+  border-color: rgba(107,227,164,0.22);
+  background: rgba(107,227,164,0.12);
+  color: #B9F8D5;
+}
+.btn-danger {
+  border-color: rgba(255,138,138,0.22);
+  background: rgba(255,138,138,0.08);
+  color: #FF8A8A;
+}
+.form-actions {
+  display: flex;
+  gap: 8px;
+  align-items: end;
+}
+.form-actions .btn { flex: 1; }
+.edit-only[hidden] { display: none; }
+
+.section-h {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 18px 0 8px;
+}
+.entry-count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+.table-wrap {
+  overflow-x: auto;
+  margin-bottom: 14px;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.018);
+}
+table {
+  width: 100%;
+  min-width: 940px;
+  border-collapse: collapse;
+}
+th, td {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  text-align: left;
+  font-size: 12px;
+  color: var(--text-secondary);
+  vertical-align: middle;
+}
+th {
+  color: var(--text-tertiary);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+tr:last-child td { border-bottom: none; }
+.sort-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+.sort-btn::after {
+  content: '';
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid rgba(255,255,255,0.28);
+}
+.sort-btn.is-asc::after { border-top: 0; border-bottom: 5px solid rgba(255,255,255,0.75); }
+.sort-btn.is-desc::after { border-top-color: rgba(255,255,255,0.75); }
+.amount, .mono { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.amount.good { color: var(--success); }
+.note-cell {
+  max-width: 210px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: nowrap;
+}
+.actions .btn {
+  min-height: 0;
+  padding: 6px 8px;
+  font-size: 11px;
+}
+.empty {
+  padding: 14px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  text-align: center;
+}
+
+@media (max-width: 800px) {
+  .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .field-wide { grid-column: span 2; }
+}
+
+@media (max-width: 600px) {
+  .shell { padding: 18px 12px 72px; }
+  .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stat { padding: 12px; }
+  .stat-value { font-size: 19px; }
+  .chart-wrap { padding: 12px; min-height: 250px; }
+  .chart-frame { grid-template-columns: 44px minmax(0, 1fr); }
+  .y-axis { font-size: 9px; }
+  .form-grid { grid-template-columns: 1fr; }
+  .field-wide { grid-column: auto; }
+  .form-head { display: grid; }
+  .form-actions { flex-direction: column; align-items: stretch; }
+  .form-actions .btn { width: 100%; }
+  th, td { padding: 10px; }
+}
+</style>
+</head>
+<body>
+<main class="shell">
+  <a href="index.html" class="back-btn" aria-label="Back to dashboard">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+    <span>Back</span>
+  </a>
+
+  <div class="section-title">EDITING INCOME</div>
+
+  <section class="summary-grid" aria-label="Editing summary">
+    <div class="stat"><div class="stat-label">Total earned ex-BTW</div><div class="stat-value good" id="totalExVat">EUR 0.00</div></div>
+    <div class="stat"><div class="stat-label">Total earned incl. BTW</div><div class="stat-value good" id="totalInclVat">EUR 0.00</div></div>
+    <div class="stat"><div class="stat-label">Total videos made</div><div class="stat-value" id="totalVideos">0</div></div>
+    <div class="stat"><div class="stat-label">Total time spent</div><div class="stat-value" id="totalTime">0h</div></div>
+  </section>
+
+  <section class="chart-wrap" id="chartWrap" aria-label="Editing income over time">
+    <div class="chart-head">
+      <span class="chart-label">Cumulative ex-BTW income</span>
+      <span class="chart-total" id="chartTotal">EUR 0.00</span>
+    </div>
+    <div class="chart-frame">
+      <div class="y-axis" aria-hidden="true">
+        <span id="axisMax">EUR 0</span>
+        <span id="axisMid">EUR 0</span>
+        <span id="axisMin">EUR 0</span>
+      </div>
+      <div class="plot">
+        <svg class="chart-svg" id="chartSvg" viewBox="0 0 600 200" preserveAspectRatio="none" aria-hidden="true">
+          <defs>
+            <linearGradient id="editingChartGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="currentColor" stop-opacity="0.55"/>
+              <stop offset="60%" stop-color="currentColor" stop-opacity="0.18"/>
+              <stop offset="100%" stop-color="currentColor" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <line class="chart-grid" x1="0" x2="600" y1="40" y2="40"/>
+          <line class="chart-grid" x1="0" x2="600" y1="100" y2="100"/>
+          <line class="chart-grid" x1="0" x2="600" y1="160" y2="160"/>
+          <path id="chartArea" fill="url(#editingChartGrad)" d=""/>
+          <path id="chartLine" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" style="filter: drop-shadow(0 0 6px currentColor)" d=""/>
+        </svg>
+        <div class="x-axis" aria-hidden="true">
+          <span id="axisStart">Date</span>
+          <span id="axisEnd">Date</span>
+        </div>
+      </div>
+    </div>
+    <div class="chart-empty" id="chartEmpty">Add editing income to chart cumulative ex-BTW earnings.</div>
+  </section>
+
+  <section class="form-card" aria-label="Add editing income">
+    <div class="form-head">
+      <div class="form-title" id="formTitle">Add editing income</div>
+      <div class="field" style="min-width:150px">
+        <label for="vatPercentage">BTW percentage</label>
+        <input type="number" id="vatPercentage" min="0" step="0.01" inputmode="decimal" value="21">
+      </div>
+    </div>
+    <form id="entryForm" class="form-grid">
+      <div class="field">
+        <label for="entryDate">Date</label>
+        <input type="date" id="entryDate" required>
+      </div>
+      <div class="field">
+        <label for="clientName">Client name</label>
+        <input type="text" id="clientName" placeholder="Client" autocomplete="off" required>
+      </div>
+      <div class="field">
+        <label for="videoCount">Number of videos</label>
+        <input type="number" id="videoCount" min="1" step="1" inputmode="numeric" placeholder="0" required>
+      </div>
+      <div class="field">
+        <label for="pricePerVideo">Price per video ex-BTW</label>
+        <input type="number" id="pricePerVideo" min="0" step="0.01" inputmode="decimal" placeholder="0.00" required>
+      </div>
+      <div class="field">
+        <label for="timeSpent">Time spent</label>
+        <input type="number" id="timeSpent" min="0" step="0.25" inputmode="decimal" placeholder="Hours">
+      </div>
+      <div class="field field-wide">
+        <label for="entryNote">Optional note</label>
+        <input type="text" id="entryNote" placeholder="Note" autocomplete="off">
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary" id="saveEntryBtn" type="submit">Add editing income</button>
+        <button class="btn edit-only" id="cancelEditBtn" type="button" hidden>Cancel</button>
+      </div>
+    </form>
+  </section>
+
+  <div class="section-h">
+    <span class="section-label">Overview</span>
+    <span class="entry-count" id="entryCount">0 entries</span>
+  </div>
+  <section class="table-wrap" aria-label="Editing income overview">
+    <table>
+      <thead>
+        <tr>
+          <th><button class="sort-btn" type="button" data-sort="date">Date</button></th>
+          <th><button class="sort-btn" type="button" data-sort="clientName">Client name</button></th>
+          <th><button class="sort-btn" type="button" data-sort="numberOfVideos">Videos</button></th>
+          <th>Price per video ex-BTW</th>
+          <th><button class="sort-btn" type="button" data-sort="totalExVat">Total ex-BTW</button></th>
+          <th>Total incl. BTW</th>
+          <th><button class="sort-btn" type="button" data-sort="timeSpent">Time spent</button></th>
+          <th>Note</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="entryBody"></tbody>
+    </table>
+    <div class="empty" id="emptyState">No editing income yet.</div>
+  </section>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  const LS_KEY = 'editing_income_v1';
+  let editingId = null;
+  let sortState = { key: 'date', dir: 'desc' };
+
+  function today() {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  function id() {
+    return 'edit_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
+  }
+  function escapeHtml(value) {
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+  function money(value) {
+    const n = Number(value) || 0;
+    return 'EUR ' + n.toFixed(2);
+  }
+  function compactMoney(value) {
+    const n = Number(value) || 0;
+    if (Math.abs(n) >= 1000) return 'EUR ' + Math.round(n).toLocaleString('en-US');
+    return 'EUR ' + n.toFixed(0);
+  }
+  function hours(value) {
+    const n = Number(value) || 0;
+    if (!n) return '0h';
+    return (Math.round(n * 100) / 100).toString().replace(/\.0$/, '') + 'h';
+  }
+  function fieldValue(id) {
+    const el = document.getElementById(id);
+    return el ? el.value.trim() : '';
+  }
+  function fieldNumber(id) {
+    const n = parseFloat(fieldValue(id));
+    return isNaN(n) ? 0 : n;
+  }
+  function setText(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+  }
+  function setValue(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.value = value == null ? '' : value;
+  }
+
+  function defaultState() {
+    return { vatPercentage: 21, entries: [] };
+  }
+  function normalizeEntry(entry) {
+    const numberOfVideos = Math.max(0, Math.floor(Number(entry.numberOfVideos) || 0));
+    const pricePerVideoExVat = Math.max(0, Number(entry.pricePerVideoExVat) || 0);
+    const vatPercentage = Math.max(0, Number(entry.vatPercentage) || 0);
+    const totalExVat = numberOfVideos * pricePerVideoExVat;
+    return {
+      id: entry.id || id(),
+      date: entry.date || today(),
+      clientName: String(entry.clientName || '').trim(),
+      numberOfVideos,
+      pricePerVideoExVat,
+      timeSpent: Math.max(0, Number(entry.timeSpent) || 0),
+      note: String(entry.note || '').trim(),
+      vatPercentage,
+      createdAt: Number(entry.createdAt) || Date.now(),
+      updatedAt: Number(entry.updatedAt) || null,
+      totalExVat,
+      totalInclVat: totalExVat * (1 + vatPercentage / 100)
+    };
+  }
+  function state() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
+      const base = raw && typeof raw === 'object' ? raw : defaultState();
+      const vatPercentage = Number(base.vatPercentage);
+      return {
+        vatPercentage: isNaN(vatPercentage) ? 21 : Math.max(0, vatPercentage),
+        entries: Array.isArray(base.entries) ? base.entries.map(normalizeEntry) : []
+      };
+    } catch (_) {
+      return defaultState();
+    }
+  }
+  function save(nextState) {
+    const clean = {
+      vatPercentage: Math.max(0, Number(nextState.vatPercentage) || 0),
+      entries: (nextState.entries || []).map(normalizeEntry)
+    };
+    localStorage.setItem(LS_KEY, JSON.stringify(clean));
+    if (window.DashboardSync && window.DashboardSync.scheduleAutoSync) {
+      window.DashboardSync.scheduleAutoSync('editing');
+    }
+  }
+
+  function calc(entries, vatPercentage) {
+    const totalExVat = entries.reduce((sum, entry) => sum + entry.totalExVat, 0);
+    const totalInclVat = totalExVat * (1 + vatPercentage / 100);
+    const totalVideos = entries.reduce((sum, entry) => sum + entry.numberOfVideos, 0);
+    const totalTime = entries.reduce((sum, entry) => sum + entry.timeSpent, 0);
+    return {
+      totalExVat,
+      totalInclVat,
+      totalVideos,
+      totalTime,
+      avgPricePerVideo: totalVideos ? totalExVat / totalVideos : 0
+    };
+  }
+
+  function smoothPath(points) {
+    if (!points.length) return '';
+    if (points.length === 1) return 'M0,' + points[0].y + ' L600,' + points[0].y;
+    let d = 'M' + points[0].x + ',' + points[0].y;
+    for (let i = 0; i < points.length - 1; i++) {
+      const p0 = points[Math.max(0, i - 1)];
+      const p1 = points[i];
+      const p2 = points[i + 1];
+      const p3 = points[Math.min(points.length - 1, i + 2)];
+      const cp1x = p1.x + (p2.x - p0.x) / 6;
+      const cp1y = p1.y + (p2.y - p0.y) / 6;
+      const cp2x = p2.x - (p3.x - p1.x) / 6;
+      const cp2y = p2.y - (p3.y - p1.y) / 6;
+      d += ' C' + cp1x + ',' + cp1y + ' ' + cp2x + ',' + cp2y + ' ' + p2.x + ',' + p2.y;
+    }
+    return d;
+  }
+  function renderChart(entries) {
+    const wrap = document.getElementById('chartWrap');
+    const line = document.getElementById('chartLine');
+    const area = document.getElementById('chartArea');
+    if (!wrap || !line || !area) return;
+
+    const ordered = entries.slice().sort((a, b) =>
+      String(a.date).localeCompare(String(b.date)) || (a.createdAt - b.createdAt)
+    );
+    if (!ordered.length) {
+      wrap.classList.remove('has-data');
+      line.setAttribute('d', '');
+      area.setAttribute('d', '');
+      setText('chartTotal', money(0));
+      setText('axisMax', 'EUR 0');
+      setText('axisMid', 'EUR 0');
+      setText('axisMin', 'EUR 0');
+      setText('axisStart', 'Date');
+      setText('axisEnd', 'Date');
+      return;
+    }
+
+    let running = 0;
+    const hist = ordered.map(entry => {
+      running += entry.totalExVat;
+      return { date: entry.date, value: running };
+    });
+    const maxV = Math.max.apply(null, hist.map(p => p.value).concat([0]));
+    const minV = 0;
+    const range = Math.max(1, maxV - minV);
+    const W = 600, H = 200, pad = 8;
+    const points = hist.map((point, index) => ({
+      x: hist.length === 1 ? W / 2 : (index / (hist.length - 1)) * W,
+      y: H - pad - ((point.value - minV) / range) * (H - pad * 2)
+    }));
+    const d = smoothPath(points);
+    const first = points[0];
+    const last = points[points.length - 1];
+
+    wrap.classList.add('has-data');
+    setText('chartTotal', money(running));
+    setText('axisMax', compactMoney(maxV));
+    setText('axisMid', compactMoney(maxV / 2));
+    setText('axisMin', 'EUR 0');
+    setText('axisStart', hist[0].date);
+    setText('axisEnd', hist[hist.length - 1].date);
+    line.setAttribute('d', d);
+    area.setAttribute('d', d + ' L' + last.x + ',' + H + ' L' + first.x + ',' + H + ' Z');
+  }
+
+  function sortedEntries(entries) {
+    const dir = sortState.dir === 'asc' ? 1 : -1;
+    return entries.slice().sort((a, b) => {
+      let av = a[sortState.key];
+      let bv = b[sortState.key];
+      if (sortState.key === 'clientName') {
+        return String(av || '').localeCompare(String(bv || '')) * dir || ((b.createdAt || 0) - (a.createdAt || 0));
+      }
+      if (sortState.key === 'date') {
+        return String(av || '').localeCompare(String(bv || '')) * dir || ((b.createdAt || 0) - (a.createdAt || 0));
+      }
+      av = Number(av) || 0;
+      bv = Number(bv) || 0;
+      return (av - bv) * dir || ((b.createdAt || 0) - (a.createdAt || 0));
+    });
+  }
+  function renderSortButtons() {
+    document.querySelectorAll('.sort-btn').forEach(btn => {
+      btn.classList.remove('is-asc', 'is-desc');
+      if (btn.dataset.sort === sortState.key) btn.classList.add(sortState.dir === 'asc' ? 'is-asc' : 'is-desc');
+    });
+  }
+  function renderTable(entries, vatPercentage) {
+    const body = document.getElementById('entryBody');
+    const empty = document.getElementById('emptyState');
+    const rows = sortedEntries(entries);
+    setText('entryCount', rows.length + (rows.length === 1 ? ' entry' : ' entries'));
+    if (body) {
+      body.innerHTML = rows.map(entry =>
+        '<tr>' +
+          '<td class="mono">' + escapeHtml(entry.date) + '</td>' +
+          '<td>' + escapeHtml(entry.clientName || 'Client') + '</td>' +
+          '<td class="mono">' + entry.numberOfVideos + '</td>' +
+          '<td class="amount">' + money(entry.pricePerVideoExVat) + '</td>' +
+          '<td class="amount good">' + money(entry.totalExVat) + '</td>' +
+          '<td class="amount">' + money(entry.totalExVat * (1 + vatPercentage / 100)) + '</td>' +
+          '<td class="mono">' + hours(entry.timeSpent) + '</td>' +
+          '<td class="note-cell">' + escapeHtml(entry.note) + '</td>' +
+          '<td><div class="actions">' +
+            '<button class="btn" type="button" data-action="edit" data-id="' + entry.id + '">Edit</button>' +
+            '<button class="btn" type="button" data-action="duplicate" data-id="' + entry.id + '">Duplicate</button>' +
+            '<button class="btn btn-danger" type="button" data-action="delete" data-id="' + entry.id + '">Delete</button>' +
+          '</div></td>' +
+        '</tr>'
+      ).join('');
+    }
+    if (empty) empty.style.display = rows.length ? 'none' : 'block';
+    renderSortButtons();
+  }
+  function render() {
+    const s = state();
+    const c = calc(s.entries, s.vatPercentage);
+    setValue('vatPercentage', s.vatPercentage);
+    setText('totalExVat', money(c.totalExVat));
+    setText('totalInclVat', money(c.totalInclVat));
+    setText('totalVideos', String(c.totalVideos));
+    setText('totalTime', hours(c.totalTime));
+    renderChart(s.entries);
+    renderTable(s.entries, s.vatPercentage);
+  }
+
+  function resetForm() {
+    editingId = null;
+    setText('formTitle', 'Add editing income');
+    setText('saveEntryBtn', 'Add editing income');
+    document.getElementById('cancelEditBtn').hidden = true;
+    setValue('entryDate', today());
+    setValue('clientName', '');
+    setValue('videoCount', '');
+    setValue('pricePerVideo', '');
+    setValue('timeSpent', '');
+    setValue('entryNote', '');
+  }
+  function entryFromForm(existing) {
+    const vatPercentage = Math.max(0, fieldNumber('vatPercentage') || 0);
+    const numberOfVideos = Math.max(1, Math.floor(fieldNumber('videoCount')));
+    const pricePerVideoExVat = Math.max(0, fieldNumber('pricePerVideo'));
+    return normalizeEntry({
+      id: existing ? existing.id : id(),
+      date: fieldValue('entryDate') || today(),
+      clientName: fieldValue('clientName') || 'Client',
+      numberOfVideos,
+      pricePerVideoExVat,
+      timeSpent: Math.max(0, fieldNumber('timeSpent')),
+      note: fieldValue('entryNote'),
+      vatPercentage,
+      createdAt: existing ? existing.createdAt : Date.now(),
+      updatedAt: existing ? Date.now() : null
+    });
+  }
+  function submitEntry(event) {
+    event.preventDefault();
+    const s = state();
+    const vatPercentage = Math.max(0, fieldNumber('vatPercentage') || 0);
+    const existing = editingId ? s.entries.find(entry => entry.id === editingId) : null;
+    const nextEntry = entryFromForm(existing);
+    s.vatPercentage = vatPercentage;
+    if (existing) {
+      s.entries = s.entries.map(entry => entry.id === existing.id ? nextEntry : entry);
+    } else {
+      s.entries.push(nextEntry);
+    }
+    save(s);
+    resetForm();
+    render();
+  }
+  function startEdit(entry) {
+    editingId = entry.id;
+    setText('formTitle', 'Edit editing income');
+    setText('saveEntryBtn', 'Save editing income');
+    document.getElementById('cancelEditBtn').hidden = false;
+    setValue('entryDate', entry.date);
+    setValue('clientName', entry.clientName);
+    setValue('videoCount', entry.numberOfVideos);
+    setValue('pricePerVideo', entry.pricePerVideoExVat);
+    setValue('timeSpent', entry.timeSpent || '');
+    setValue('entryNote', entry.note);
+    document.getElementById('entryDate').focus();
+  }
+  function handleAction(event) {
+    const btn = event.target.closest('[data-action]');
+    if (!btn) return;
+    const s = state();
+    const entry = s.entries.find(item => item.id === btn.dataset.id);
+    if (!entry) return;
+    if (btn.dataset.action === 'edit') {
+      startEdit(entry);
+      return;
+    }
+    if (btn.dataset.action === 'duplicate') {
+      const copy = normalizeEntry(Object.assign({}, entry, {
+        id: id(),
+        createdAt: Date.now(),
+        updatedAt: null
+      }));
+      s.entries.push(copy);
+      save(s);
+      render();
+      return;
+    }
+    if (btn.dataset.action === 'delete') {
+      if (!confirm('Delete this editing income entry?')) return;
+      s.entries = s.entries.filter(item => item.id !== entry.id);
+      save(s);
+      if (editingId === entry.id) resetForm();
+      render();
+    }
+  }
+  function saveVatSetting() {
+    const s = state();
+    s.vatPercentage = Math.max(0, fieldNumber('vatPercentage') || 0);
+    save(s);
+    render();
+  }
+  function handleSort(event) {
+    const btn = event.target.closest('.sort-btn');
+    if (!btn) return;
+    const key = btn.dataset.sort;
+    if (sortState.key === key) sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
+    else sortState = { key, dir: key === 'clientName' ? 'asc' : 'desc' };
+    render();
+  }
+
+  document.getElementById('entryDate').value = today();
+  document.getElementById('entryForm').addEventListener('submit', submitEntry);
+  document.getElementById('cancelEditBtn').addEventListener('click', () => { resetForm(); render(); });
+  document.getElementById('vatPercentage').addEventListener('change', saveVatSetting);
+  document.querySelector('.table-wrap').addEventListener('click', handleAction);
+  document.querySelector('thead').addEventListener('click', handleSort);
+  window.addEventListener('storage', render);
+  window.addEventListener('dashboard-sync-local-applied', event => {
+    if (!event.detail || event.detail.appKey === 'editing') render();
+  });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
+  render();
+})();
+</script>
+</body>
+</html>
