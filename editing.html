@@ -1099,13 +1099,13 @@ tr:last-child td { border-bottom: none; }
   }
   function render() {
     const s = state();
-    const c = calc(s.entries, s.vatPercentage);
+    const currentMonth = calcMonth(s.entries, currentMonthKey());
     setValue('vatPercentage', s.vatPercentage);
-    setText('totalExVat', money(c.totalExVat));
-    setText('totalInclVat', money(c.totalInclVat));
-    setText('totalVideos', String(c.totalVideos));
-    setText('totalTime', hours(c.totalTime));
-    renderChart(s.entries);
+    setText('totalExVat', money(currentMonth.totalExVat));
+    setText('totalInclVat', money(currentMonth.totalInclVat));
+    setText('totalVideos', String(currentMonth.totalVideos));
+    setText('totalTime', hours(currentMonth.knownTime));
+    renderChart(currentMonth.entries);
     renderTable(s.entries, s.vatPercentage);
     renderMonthlyHistory(s);
   }
