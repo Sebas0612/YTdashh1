@@ -2,9 +2,12 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0a0a0b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Dashboard">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
 <title>Finances</title>
 <script src="supabase-sync.js"></script>
 <script src="topbar.js" defer></script>
@@ -1826,6 +1829,22 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   .bux-toolbar .bux-file-label { width: 100%; justify-content: center; }
   .bux-bar-row { grid-template-columns: 1fr; gap: 5px; }
   .bux-symbol-input { font-size: 16px; }
+}
+
+@media (max-width: 768px) {
+  input,
+  textarea,
+  select,
+  .date-field input[type="date"] {
+    font-size: 16px !important;
+  }
+  button,
+  .quick-add-btn,
+  .vinted-btn,
+  .ord-add-btn,
+  .wish-add-btn {
+    font-size: 16px;
+  }
 }
 </style>
 </head>

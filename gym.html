@@ -2,8 +2,12 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#08090b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Dashboard">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
 <title>Gym Tracker</title>
 <script src="supabase-sync.js"></script>
 <script src="topbar.js" defer></script>
@@ -296,12 +300,21 @@ button { -webkit-tap-highlight-color: transparent; }
   font-size: 18px;
   font-weight: 850;
 }
+.save-draft-top {
+  white-space: nowrap;
+}
 .editor-meta {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr auto auto;
   gap: 8px;
   align-items: center;
   margin-top: 10px;
+}
+.workout-note {
+  min-height: 70px;
+  margin-top: 10px;
+  line-height: 1.35;
+  resize: vertical;
 }
 .duration {
   color: var(--muted);
@@ -626,6 +639,38 @@ button { -webkit-tap-highlight-color: transparent; }
   color: var(--text);
   font-weight: 850;
 }
+.confirm-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  display: none;
+  place-items: center;
+  padding: 18px;
+  background: rgba(0,0,0,0.66);
+}
+.confirm-modal.show { display: grid; }
+.confirm-sheet {
+  width: min(390px, 100%);
+  border: 1px solid var(--border-strong);
+  border-radius: 18px;
+  background: #0d0f13;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.54);
+  padding: 16px;
+}
+.confirm-title {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.2;
+}
+.confirm-copy {
+  margin: 7px 0 14px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+.confirm-actions {
+  display: grid;
+  gap: 8px;
+}
 @media (max-width: 520px) {
   .app { padding-left: 12px; padding-right: 12px; }
   .title { font-size: 25px; }
@@ -636,6 +681,10 @@ button { -webkit-tap-highlight-color: transparent; }
   .custom-box { grid-template-columns: 1fr; }
   .progress-row { grid-template-columns: 72px 1fr; }
   .progress-row strong { grid-column: 1 / -1; }
+  .editor-title-row { grid-template-columns: auto 1fr auto; }
+  .editor-meta { grid-template-columns: 1fr auto; }
+  .editor-meta .save-draft-top { grid-column: 1 / -1; }
+  .save-draft-top { padding-left: 10px; padding-right: 10px; }
 }
 @media (max-width: 768px) {
   input,
@@ -643,6 +692,11 @@ button { -webkit-tap-highlight-color: transparent; }
   select,
   button {
     font-size: 16px;
+  }
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
   }
   .title-input {
     font-size: 18px;
@@ -721,23 +775,25 @@ button { -webkit-tap-highlight-color: transparent; }
     <div class="editor">
       <div class="editor-head">
         <div class="editor-title-row">
-          <button class="icon-btn" id="closeWorkoutBtn" type="button" aria-label="Back">&lt;</button>
+          <button class="icon-btn" id="closeWorkoutBtn" type="button" aria-label="Close workout">x</button>
           <input class="title-input" id="workoutTitle" type="text" placeholder="Workout name">
           <button class="icon-btn" id="addExerciseTopBtn" type="button" aria-label="Add exercise">+</button>
         </div>
         <div class="editor-meta">
           <input class="date-input" id="workoutDate" type="date">
           <div class="duration" id="workoutDuration">00:00</div>
+          <button class="ghost-btn save-draft-top" id="saveDraftTopBtn" type="button">Save Draft</button>
         </div>
+        <textarea class="note-input workout-note" id="workoutNotes" rows="2" placeholder="Workout notes"></textarea>
       </div>
 
       <div id="exerciseStack"></div>
       <button class="ghost-btn" id="addExerciseBtn" type="button">Add Exercise</button>
 
       <div class="workout-actions">
-        <button class="ghost-btn" id="saveLaterBtn" type="button">Save For Later</button>
+        <button class="ghost-btn" id="saveLaterBtn" type="button">Save Draft</button>
         <button class="danger-btn" id="deleteDraftBtn" type="button">Delete</button>
-        <button class="primary-btn" id="finishWorkoutBtn" type="button">Finish Workout</button>
+        <button class="primary-btn" id="finishWorkoutBtn" type="button">Complete Workout</button>
       </div>
     </div>
   </section>
@@ -776,6 +832,18 @@ button { -webkit-tap-highlight-color: transparent; }
       <input class="custom-input" id="customName" type="text" placeholder="Custom exercise">
       <select id="customMuscle"></select>
       <button class="primary-btn" id="customAdd" type="button">Create</button>
+    </div>
+  </div>
+</div>
+
+<div class="confirm-modal" id="exitWorkoutModal" aria-hidden="true">
+  <div class="confirm-sheet" role="dialog" aria-modal="true" aria-labelledby="exitWorkoutTitle">
+    <h2 class="confirm-title" id="exitWorkoutTitle">Close workout?</h2>
+    <p class="confirm-copy">Save the draft to return to the calendar, exit the editor, or keep training.</p>
+    <div class="confirm-actions">
+      <button class="primary-btn" id="modalSaveDraftBtn" type="button">Save Draft</button>
+      <button class="danger-btn" id="modalExitWorkoutBtn" type="button">Exit Workout</button>
+      <button class="ghost-btn" id="modalCancelWorkoutBtn" type="button">Cancel</button>
     </div>
   </div>
 </div>
@@ -826,7 +894,7 @@ button { -webkit-tap-highlight-color: transparent; }
 
   let state = loadState();
   let activeWorkoutId = null;
-  let selectedDate = state.selectedDate || todayKey();
+  let selectedDate = todayKey();
   let calendarCursor = monthStart(parseDate(selectedDate));
   let detailWorkoutId = null;
   let durationTimer = null;
@@ -880,7 +948,16 @@ button { -webkit-tap-highlight-color: transparent; }
     return String(s).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
   }
   function defaultState() {
-    return { version: 2, exercises: seedLibrary(), workouts: [], selectedDate: todayKey(), migratedFrom: null };
+    return {
+      version: 2,
+      exercises: seedLibrary(),
+      workouts: [],
+      selectedDate: todayKey(),
+      uiMode: 'calendar',
+      activeWorkoutId: null,
+      detailWorkoutId: null,
+      migratedFrom: null
+    };
   }
   function loadState() {
     try {
@@ -896,13 +973,28 @@ button { -webkit-tap-highlight-color: transparent; }
     s.version = 2;
     s.exercises = Array.isArray(s.exercises) && s.exercises.length ? mergeLibrary(s.exercises) : seedLibrary();
     s.workouts = Array.isArray(s.workouts) ? s.workouts : [];
+    s.selectedDate = String(s.selectedDate || todayKey()).slice(0, 10);
+    s.uiMode = ['calendar', 'workout-editor', 'workout-detail'].indexOf(s.uiMode) === -1 ? 'calendar' : s.uiMode;
+    s.activeWorkoutId = s.activeWorkoutId || null;
+    s.detailWorkoutId = s.detailWorkoutId || null;
     s.workouts.forEach(w => {
+      w.status = w.status === 'completed' ? 'completed' : 'draft';
+      w.notes = String(w.notes || '');
       w.exercises = Array.isArray(w.exercises) ? w.exercises : [];
       w.exercises.forEach(ex => {
         ex.sets = Array.isArray(ex.sets) ? ex.sets : [];
         ex.note = ex.note || '';
       });
     });
+    const active = s.workouts.find(w => w.id === s.activeWorkoutId && w.status !== 'completed');
+    if (!active) {
+      s.activeWorkoutId = null;
+      if (s.uiMode === 'workout-editor') s.uiMode = 'calendar';
+    }
+    if (!s.workouts.some(w => w.id === s.detailWorkoutId)) {
+      s.detailWorkoutId = null;
+      if (s.uiMode === 'workout-detail') s.uiMode = 'calendar';
+    }
     return s;
   }
   function mergeLibrary(items) {
@@ -1000,6 +1092,14 @@ button { -webkit-tap-highlight-color: transparent; }
   function currentWorkout() {
     return state.workouts.find(w => w.id === activeWorkoutId) || null;
   }
+  function activeDraftFromState() {
+    return state.workouts.find(w => w.id === state.activeWorkoutId && w.status !== 'completed') || null;
+  }
+  function setMode(mode) {
+    state.uiMode = mode;
+    state.activeWorkoutId = mode === 'workout-editor' ? activeWorkoutId : null;
+    state.detailWorkoutId = mode === 'workout-detail' ? detailWorkoutId : null;
+  }
   function completedWorkouts() {
     return state.workouts.filter(w => w.status === 'completed');
   }
@@ -1049,6 +1149,7 @@ button { -webkit-tap-highlight-color: transparent; }
       btn.addEventListener('click', () => {
         selectedDate = btn.dataset.date;
         state.selectedDate = selectedDate;
+        setMode('calendar');
         save();
         renderHome();
       });
@@ -1181,24 +1282,42 @@ button { -webkit-tap-highlight-color: transparent; }
       startedAt: new Date().toISOString(),
       finishedAt: null,
       durationSec: 0,
+      notes: '',
       exercises: []
     };
     state.workouts.push(w);
     activeWorkoutId = w.id;
+    selectedDate = w.date;
+    calendarCursor = monthStart(parseDate(selectedDate));
+    setMode('workout-editor');
     save();
     openWorkout(w.id);
   }
-  function openWorkout(id) {
+  function openWorkout(id, options) {
+    const w = state.workouts.find(x => x.id === id);
+    if (!w) { renderHome(); return; }
     activeWorkoutId = id;
+    selectedDate = w.date || selectedDate || todayKey();
+    calendarCursor = monthStart(parseDate(selectedDate));
+    state.selectedDate = selectedDate;
+    setMode('workout-editor');
+    if (!options || !options.skipSave) save();
     showScreen('workoutScreen');
     renderWorkoutEditor();
     startDurationTicker();
   }
   function renderWorkoutEditor() {
     const w = currentWorkout();
-    if (!w) { renderHome(); return; }
+    if (!w) {
+      activeWorkoutId = null;
+      setMode('calendar');
+      save();
+      renderHome();
+      return;
+    }
     $('workoutTitle').value = w.title || '';
     $('workoutDate').value = w.date || todayKey();
+    $('workoutNotes').value = w.notes || '';
     updateDurationLabel();
     $('exerciseStack').innerHTML = w.exercises.length ? w.exercises.map((ex, idx) => exerciseCard(w, ex, idx)).join('') : '<div class="empty">Add your first exercise.</div>';
     bindExerciseCards();
@@ -1383,6 +1502,40 @@ button { -webkit-tap-highlight-color: transparent; }
     if (!w) return;
     syncWorkoutFields(w);
     w.status = 'draft';
+    selectedDate = w.date || todayKey();
+    calendarCursor = monthStart(parseDate(selectedDate));
+    state.selectedDate = selectedDate;
+    activeWorkoutId = null;
+    setMode('calendar');
+    save();
+    stopDurationTicker();
+    renderHome();
+  }
+  function showExitWorkoutModal() {
+    const w = currentWorkout();
+    if (w) {
+      syncWorkoutFields(w);
+      setMode('workout-editor');
+      save();
+    }
+    $('exitWorkoutModal').classList.add('show');
+    $('exitWorkoutModal').setAttribute('aria-hidden', 'false');
+  }
+  function hideExitWorkoutModal() {
+    $('exitWorkoutModal').classList.remove('show');
+    $('exitWorkoutModal').setAttribute('aria-hidden', 'true');
+  }
+  function exitWorkoutEditor() {
+    const w = currentWorkout();
+    if (w) {
+      syncWorkoutFields(w);
+      w.status = 'draft';
+      selectedDate = w.date || selectedDate || todayKey();
+      calendarCursor = monthStart(parseDate(selectedDate));
+      state.selectedDate = selectedDate;
+    }
+    activeWorkoutId = null;
+    setMode('calendar');
     save();
     stopDurationTicker();
     renderHome();
@@ -1398,6 +1551,9 @@ button { -webkit-tap-highlight-color: transparent; }
     w.durationSec = Math.max(1, Math.round((new Date(w.finishedAt) - new Date(w.startedAt || w.finishedAt)) / 1000));
     selectedDate = w.date;
     calendarCursor = monthStart(parseDate(w.date));
+    state.selectedDate = selectedDate;
+    activeWorkoutId = null;
+    setMode('calendar');
     save();
     dismissTimer();
     stopDurationTicker();
@@ -1406,12 +1562,14 @@ button { -webkit-tap-highlight-color: transparent; }
   function syncWorkoutFields(w) {
     w.title = $('workoutTitle').value.trim() || 'Workout';
     w.date = $('workoutDate').value || todayKey();
+    w.notes = $('workoutNotes').value || '';
   }
   function deleteDraft() {
     const w = currentWorkout();
     if (!w || !confirm('Delete this workout?')) return;
     state.workouts = state.workouts.filter(x => x.id !== w.id);
     activeWorkoutId = null;
+    setMode('calendar');
     save();
     stopDurationTicker();
     renderHome();
@@ -1433,18 +1591,24 @@ button { -webkit-tap-highlight-color: transparent; }
     $('workoutDuration').textContent = fmtDuration(sec);
   }
 
-  function openDetail(id) {
+  function openDetail(id, options) {
     const w = state.workouts.find(x => x.id === id);
     if (!w) return;
     detailWorkoutId = id;
+    selectedDate = w.date || selectedDate || todayKey();
+    calendarCursor = monthStart(parseDate(selectedDate));
+    state.selectedDate = selectedDate;
+    activeWorkoutId = null;
+    setMode('workout-detail');
+    if (!options || !options.skipSave) save();
     showScreen('detailScreen');
     $('detailDate').textContent = fmtDate(w.date) + (w.durationSec ? ' · ' + fmtDuration(w.durationSec) : '');
     $('detailTitle').textContent = w.title || 'Workout';
-    $('detailBody').innerHTML = (w.exercises || []).length ? w.exercises.map(ex =>
+    $('detailBody').innerHTML = (w.notes ? '<div class="detail-exercise"><strong>Notes</strong><div class="detail-sets">' + escapeHtml(w.notes) + '</div></div>' : '') + ((w.exercises || []).length ? w.exercises.map(ex =>
       '<div class="detail-exercise"><strong>' + escapeHtml(ex.name) + '</strong>'
       + (ex.note ? '<div class="detail-sets">' + escapeHtml(ex.note) + '</div>' : '')
       + '<div class="detail-sets">' + (ex.sets || []).filter(s => s.completed).map((s, i) => 'Set ' + (i + 1) + ': ' + (Number(s.weight) || 0) + UNIT + ' x ' + (Number(s.reps) || 0)).join('<br>') + '</div></div>'
-    ).join('') : '<div class="empty">No exercises saved.</div>';
+    ).join('') : '<div class="empty">No exercises saved.</div>');
   }
 
   function startRestTimer(seconds) {
@@ -1478,17 +1642,117 @@ button { -webkit-tap-highlight-color: transparent; }
     document.title = originalTitle;
   }
 
+  function persistActiveWorkoutBeforeUnload() {
+    const w = currentWorkout();
+    if (!w || w.status === 'completed') return;
+    syncWorkoutFields(w);
+    w.status = 'draft';
+    selectedDate = w.date || selectedDate || todayKey();
+    state.selectedDate = selectedDate;
+    setMode('workout-editor');
+    saveRaw(state);
+  }
+
+  function closeDetailToHome() {
+    detailWorkoutId = null;
+    selectedDate = selectedDate || todayKey();
+    state.selectedDate = selectedDate;
+    setMode('calendar');
+    save();
+    renderHome();
+  }
+
+  function restoreInitialScreen() {
+    const active = activeDraftFromState();
+    if (active) {
+      activeWorkoutId = active.id;
+      selectedDate = active.date || todayKey();
+      calendarCursor = monthStart(parseDate(selectedDate));
+      openWorkout(active.id, { skipSave: true });
+      return;
+    }
+    selectedDate = todayKey();
+    calendarCursor = monthStart(parseDate(selectedDate));
+    activeWorkoutId = null;
+    detailWorkoutId = state.detailWorkoutId || null;
+    if (state.uiMode === 'workout-detail' && detailWorkoutId && state.workouts.some(w => w.id === detailWorkoutId)) {
+      openDetail(detailWorkoutId, { skipSave: true });
+      return;
+    }
+    setMode('calendar');
+    state.selectedDate = selectedDate;
+    renderHome();
+  }
+
+  function applySyncedGymState() {
+    const wasEditing = !$('workoutScreen').hidden;
+    const previousActiveId = activeWorkoutId;
+    state = loadState();
+    const active = activeDraftFromState();
+    if (active) {
+      activeWorkoutId = active.id;
+      selectedDate = active.date || todayKey();
+      calendarCursor = monthStart(parseDate(selectedDate));
+      openWorkout(active.id, { skipSave: true });
+      return;
+    }
+    if (wasEditing && previousActiveId) {
+      const stillDraft = state.workouts.find(w => w.id === previousActiveId && w.status !== 'completed');
+      if (stillDraft) {
+        activeWorkoutId = previousActiveId;
+        selectedDate = stillDraft.date || todayKey();
+        calendarCursor = monthStart(parseDate(selectedDate));
+        setMode('workout-editor');
+        save();
+        openWorkout(previousActiveId, { skipSave: true });
+        return;
+      }
+    }
+    activeWorkoutId = null;
+    detailWorkoutId = state.detailWorkoutId || null;
+    if (state.uiMode === 'workout-detail' && detailWorkoutId && state.workouts.some(w => w.id === detailWorkoutId)) {
+      openDetail(detailWorkoutId, { skipSave: true });
+      return;
+    }
+    selectedDate = todayKey();
+    calendarCursor = monthStart(parseDate(selectedDate));
+    setMode('calendar');
+    renderHome();
+  }
+
   function bindEvents() {
     $('prevMonth').addEventListener('click', () => { calendarCursor.setMonth(calendarCursor.getMonth() - 1); renderCalendar(); });
     $('nextMonth').addEventListener('click', () => { calendarCursor.setMonth(calendarCursor.getMonth() + 1); renderCalendar(); });
-    $('todayBtn').addEventListener('click', () => { selectedDate = todayKey(); calendarCursor = monthStart(new Date()); renderHome(); });
+    $('todayBtn').addEventListener('click', () => {
+      selectedDate = todayKey();
+      calendarCursor = monthStart(new Date());
+      state.selectedDate = selectedDate;
+      setMode('calendar');
+      save();
+      renderHome();
+    });
     $('startWorkoutBtn').addEventListener('click', () => createWorkout(selectedDate));
     $('fab').addEventListener('click', () => createWorkout(selectedDate));
-    $('closeWorkoutBtn').addEventListener('click', saveWorkoutForLater);
-    $('workoutTitle').addEventListener('input', () => { const w = currentWorkout(); if (w) { w.title = $('workoutTitle').value; save(); } });
-    $('workoutDate').addEventListener('change', () => { const w = currentWorkout(); if (w) { w.date = $('workoutDate').value; save(); } });
+    $('closeWorkoutBtn').addEventListener('click', showExitWorkoutModal);
+    $('modalSaveDraftBtn').addEventListener('click', () => { hideExitWorkoutModal(); saveWorkoutForLater(); });
+    $('modalExitWorkoutBtn').addEventListener('click', () => { hideExitWorkoutModal(); exitWorkoutEditor(); });
+    $('modalCancelWorkoutBtn').addEventListener('click', hideExitWorkoutModal);
+    $('exitWorkoutModal').addEventListener('click', e => { if (e.target.id === 'exitWorkoutModal') hideExitWorkoutModal(); });
+    $('workoutTitle').addEventListener('input', () => { const w = currentWorkout(); if (w) { w.title = $('workoutTitle').value; setMode('workout-editor'); save(); } });
+    $('workoutDate').addEventListener('change', () => {
+      const w = currentWorkout();
+      if (w) {
+        w.date = $('workoutDate').value || todayKey();
+        selectedDate = w.date;
+        calendarCursor = monthStart(parseDate(selectedDate));
+        setMode('workout-editor');
+        save();
+      }
+    });
+    $('workoutNotes').addEventListener('input', () => { const w = currentWorkout(); if (w) { w.notes = $('workoutNotes').value; setMode('workout-editor'); save(); } });
     $('addExerciseBtn').addEventListener('click', openPicker);
     $('addExerciseTopBtn').addEventListener('click', openPicker);
+    $('saveDraftTopBtn').addEventListener('click', saveWorkoutForLater);
     $('saveLaterBtn').addEventListener('click', saveWorkoutForLater);
     $('finishWorkoutBtn').addEventListener('click', finishWorkout);
     $('deleteDraftBtn').addEventListener('click', deleteDraft);
@@ -1498,13 +1762,13 @@ button { -webkit-tap-highlight-color: transparent; }
     $('muscleFilter').addEventListener('change', renderPicker);
     $('equipmentFilter').addEventListener('change', renderPicker);
     $('customAdd').addEventListener('click', createCustomExercise);
-    $('customName').addEventListener('keydown', e => { if (e.key === 'Enter') createCustomExercise(); });
+    $('customName').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); createCustomExercise(); } });
     $('progressExercise').addEventListener('change', () => {
       state.progressExerciseId = $('progressExercise').value;
       save();
       renderProgress();
     });
-    $('backFromDetail').addEventListener('click', renderHome);
+    $('backFromDetail').addEventListener('click', closeDetailToHome);
     $('editWorkoutBtn').addEventListener('click', () => { if (detailWorkoutId) openWorkout(detailWorkoutId); });
     $('timerMinus').addEventListener('click', () => { rest.remaining = Math.max(0, rest.remaining - 30); tickTimerDisplay(); });
     $('timerPlus').addEventListener('click', () => { rest.remaining += 30; tickTimerDisplay(); });
@@ -1514,15 +1778,22 @@ button { -webkit-tap-highlight-color: transparent; }
       tickTimerDisplay();
     });
     $('timerClose').addEventListener('click', dismissTimer);
-    window.addEventListener('dashboard-sync-local-applied', () => {
-      state = loadState();
-      activeWorkoutId = null;
-      renderHome();
+    $('workoutScreen').addEventListener('keydown', e => {
+      if (e.key === 'Enter' && e.target && e.target.matches('input')) e.preventDefault();
+    });
+    document.addEventListener('submit', e => {
+      if ($('workoutScreen').contains(e.target)) e.preventDefault();
+    }, true);
+    window.addEventListener('pagehide', persistActiveWorkoutBeforeUnload);
+    window.addEventListener('beforeunload', persistActiveWorkoutBeforeUnload);
+    window.addEventListener('dashboard-sync-local-applied', event => {
+      if (event.detail && event.detail.appKey && event.detail.appKey !== 'gym') return;
+      applySyncedGymState();
     });
   }
 
   bindEvents();
-  renderHome();
+  restoreInitialScreen();
 })();
 </script>
 </body>

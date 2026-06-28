@@ -94,12 +94,25 @@
     return sdkPromise;
   }
 
+  function isStandalonePwa() {
+    return !!(
+      (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+      (window.navigator && window.navigator.standalone === true)
+    );
+  }
+
   async function getSupabaseClient() {
     if (!isConfigured()) return null;
     if (client) return client;
     const supabaseGlobal = await loadSupabaseSdk();
     if (!supabaseGlobal) return null;
-    client = supabaseGlobal.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    client = supabaseGlobal.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true
+      }
+    });
     return client;
   }
 
@@ -316,16 +329,16 @@
       const user = await getCurrentUser();
       if (!user) {
         setSyncStatus('Local only');
-        debugSync('skipped save; not logged in', appKey);
+        debugSync('sync skipped because no user', appKey);
         return null;
       }
       setSyncStatus('Syncing...');
-      debugSync('saving app_state', appKey);
+      debugSync('app_key sync saving to Supabase', appKey);
       const result = await saveAppState(appKey, collectAppState(appKey));
       if (result && result.error) throw result.error;
       pendingLocalChanges[appKey] = false;
       setSyncStatus('Synced');
-      debugSync('saved app_state', appKey);
+      debugSync('app_key saved to Supabase', appKey);
       return result;
     } catch (err) {
       setSyncStatus('Local only');
@@ -344,7 +357,7 @@
       }
       const user = await getCurrentUser();
       if (!user) {
-        debugSync('skipped pull; not logged in', appKey);
+        debugSync('sync skipped because no user', appKey);
         return null;
       }
       const data = await loadAppState(appKey);
@@ -392,19 +405,19 @@
 
   function schedulePush(appKey) {
     if (!appKey) {
-      debugSync('skipped sync schedule; unknown localStorage key');
+      debugSync('sync skipped; unknown localStorage key');
       return;
     }
     if (suppressStorageSync) {
-      debugSync('skipped sync schedule; applying cloud data', appKey);
+      debugSync('sync skipped; applying cloud data', appKey);
       return;
     }
     if (!isConfigured()) {
-      debugSync('skipped sync schedule; Supabase not configured', appKey);
+      debugSync('sync skipped; Supabase not configured', appKey);
       return;
     }
     pendingLocalChanges[appKey] = true;
-    debugSync('scheduled sync', appKey);
+    debugSync('app_key sync scheduled', appKey);
     setSyncStatus('Syncing...');
     clearTimeout(timers[appKey]);
     timers[appKey] = setTimeout(() => {
@@ -426,7 +439,7 @@
       nativeSetItem.call(this, key, value);
       if (this === localStorage) {
         const appKey = appForStorageKey(String(key));
-        debugSync('localStorage.setItem', String(key), appKey || 'unmapped');
+        debugSync('localStorage key changed', String(key), appKey || 'unmapped');
         schedulePush(appKey);
       }
     };
@@ -434,7 +447,7 @@
       nativeRemoveItem.call(this, key);
       if (this === localStorage) {
         const appKey = appForStorageKey(String(key));
-        debugSync('localStorage.removeItem', String(key), appKey || 'unmapped');
+        debugSync('localStorage key changed', String(key), appKey || 'unmapped');
         schedulePush(appKey);
       }
     };
@@ -473,6 +486,24 @@
     return null;
   }
 
+  function refreshExistingServiceWorkers() {
+    if (!('serviceWorker' in navigator)) return;
+    navigator.serviceWorker.getRegistrations().then(registrations => {
+      if (!registrations.length) {
+        debugSync('no service worker registrations found');
+        return;
+      }
+      registrations.forEach(registration => {
+        debugSync('service worker registration found; requesting update');
+        registration.update().catch(err => {
+          warnSync('Could not update an existing service worker registration.', err);
+        });
+      });
+    }).catch(err => {
+      warnSync('Could not inspect service worker registrations.', err);
+    });
+  }
+
   async function bootBackgroundSync() {
     if (booted) return;
     booted = true;
@@ -481,10 +512,12 @@
       return;
     }
     try {
+      debugSync('PWA standalone mode detected', isStandalonePwa() ? 'yes' : 'no');
+      refreshExistingServiceWorkers();
       const supa = await getSupabaseClient();
       if (!supa) return;
       supa.auth.onAuthStateChange((_event, session) => {
-        debugSync('auth state changed', session && session.user ? 'signed-in' : 'signed-out');
+        debugSync('auth state changed', session && session.user ? 'user is logged in' : 'user is logged out');
         window.dispatchEvent(new CustomEvent('dashboard-sync-auth-changed'));
         if (session && session.user) {
           pullAllFromCloud({ mode: 'merge' }).catch(err => {
@@ -493,7 +526,7 @@
         }
       });
       const user = await getCurrentUser();
-      debugSync('boot user', user ? 'signed-in' : 'signed-out');
+      debugSync('user is logged in', !!user);
       if (user) {
         setSyncStatus('Synced');
         const appKey = currentPageAppKey();
@@ -554,6 +587,7 @@
     APP_KEYS,
     APP_STORAGE,
     isConfigured,
+    isStandalonePwa,
     getSupabaseClient,
     getCurrentUser,
     signInWithPassword,

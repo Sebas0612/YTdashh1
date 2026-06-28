@@ -2,9 +2,12 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0a0a0b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Dashboard">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
 <title>Editing Income</title>
 <script src="supabase-sync.js"></script>
 <script src="topbar.js" defer></script>
@@ -437,6 +440,125 @@ tr:last-child td { border-bottom: none; }
   font-size: 12px;
   text-align: center;
 }
+.monthly-history {
+  display: grid;
+  gap: 12px;
+}
+.monthly-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.month-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+.month-card {
+  width: 100%;
+  text-align: left;
+  border: 1px solid rgba(255,255,255,0.13);
+  border-radius: var(--radius-md);
+  background: rgba(255,255,255,0.055);
+  color: var(--text-primary);
+  padding: 12px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.month-card.is-active {
+  border-color: rgba(88,215,232,0.42);
+  box-shadow: 0 0 0 3px rgba(88,215,232,0.08);
+}
+.month-card-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-weight: 800;
+}
+.reviewed-badge {
+  flex: 0 0 auto;
+  border: 1px solid rgba(107,227,164,0.22);
+  border-radius: 999px;
+  color: var(--success);
+  padding: 3px 7px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.month-card-meta,
+.month-detail-meta,
+.client-breakdown,
+.month-entry-list {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.month-card-meta {
+  margin-top: 8px;
+}
+.month-detail {
+  border-top: 1px solid rgba(255,255,255,0.08);
+  padding-top: 12px;
+}
+.month-detail-title {
+  font-size: 18px;
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+.month-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.month-mini-stat {
+  border: 1px solid rgba(255,255,255,0.09);
+  border-radius: var(--radius-md);
+  background: rgba(0,0,0,0.16);
+  padding: 10px;
+}
+.month-mini-label {
+  color: var(--text-tertiary);
+  font-size: 10px;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+}
+.month-mini-value {
+  margin-top: 5px;
+  color: var(--text-primary);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.month-mini-value.good { color: var(--success); }
+.client-breakdown {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.client-row,
+.month-entry-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.055);
+  padding: 7px 0;
+}
+.client-row:last-child,
+.month-entry-row:last-child {
+  border-bottom: 0;
+}
+.month-entry-row span {
+  color: var(--text-tertiary);
+  display: block;
+  margin-top: 2px;
+}
+.client-row span {
+  color: var(--text-tertiary);
+  display: block;
+  margin-top: 2px;
+}
 
 @media (max-width: 800px) {
   .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -457,6 +579,23 @@ tr:last-child td { border-bottom: none; }
   .form-actions { flex-direction: column; align-items: stretch; }
   .form-actions .btn { width: 100%; }
   th, td { padding: 10px; }
+}
+
+@media (max-width: 768px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+  button,
+  .btn,
+  .sort-btn {
+    font-size: 16px;
+  }
+  .monthly-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
 }
 </style>
 </head>
@@ -580,6 +719,15 @@ tr:last-child td { border-bottom: none; }
     </table>
     <div class="empty" id="emptyState">No editing income yet.</div>
   </section>
+
+  <section class="form-card monthly-history" aria-label="Monthly Editing History">
+    <div class="monthly-head">
+      <div class="form-title">Monthly Editing History</div>
+      <button class="btn" id="archiveMonthBtn" type="button">Archive current month</button>
+    </div>
+    <div class="month-grid" id="monthlyHistory"></div>
+    <div class="month-detail" id="monthDetail"></div>
+  </section>
 </main>
 
 <script>
@@ -613,6 +761,7 @@ tr:last-child td { border-bottom: none; }
   ];
   let editingId = null;
   let sortState = { key: 'date', dir: 'desc' };
+  let selectedMonthKey = null;
 
   function today() {
     const d = new Date();
@@ -643,6 +792,25 @@ tr:last-child td { border-bottom: none; }
     if (!n) return '0h';
     return (Math.round(n * 100) / 100).toString().replace(/\.0$/, '') + 'h';
   }
+  function monthKeyFromDate(date) {
+    const raw = String(date || today()).slice(0, 7);
+    return /^\d{4}-\d{2}$/.test(raw) ? raw : today().slice(0, 7);
+  }
+  function currentMonthKey() {
+    return today().slice(0, 7);
+  }
+  function monthLabel(key) {
+    const parts = String(key || currentMonthKey()).split('-').map(Number);
+    const d = new Date(parts[0] || new Date().getFullYear(), (parts[1] || 1) - 1, 1);
+    return d.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  }
+  function hasKnownTime(entry) {
+    return entry.timeSpent !== '' && entry.timeSpent != null && !isNaN(Number(entry.timeSpent));
+  }
+  function hoursKnown(value, unknownCount) {
+    const label = hours(value);
+    return unknownCount ? label + ' known, ' + unknownCount + ' unknown' : label;
+  }
   function fieldValue(id) {
     const el = document.getElementById(id);
     return el ? el.value.trim() : '';
@@ -664,7 +832,7 @@ tr:last-child td { border-bottom: none; }
   }
 
   function defaultState() {
-    return { vatPercentage: 21, entries: [] };
+    return { vatPercentage: 21, entries: [], reviewedMonths: {} };
   }
   function normalizeEntry(entry) {
     const numberOfVideos = Math.max(0, Math.floor(Number(entry.numberOfVideos) || 0));
@@ -697,7 +865,8 @@ tr:last-child td { border-bottom: none; }
       const vatPercentage = Number(base.vatPercentage);
       return {
         vatPercentage: isNaN(vatPercentage) ? 21 : Math.max(0, vatPercentage),
-        entries: Array.isArray(base.entries) ? base.entries.map(normalizeEntry) : []
+        entries: Array.isArray(base.entries) ? base.entries.map(normalizeEntry) : [],
+        reviewedMonths: base.reviewedMonths && typeof base.reviewedMonths === 'object' ? base.reviewedMonths : {}
       };
     } catch (_) {
       return defaultState();
@@ -706,7 +875,8 @@ tr:last-child td { border-bottom: none; }
   function save(nextState) {
     const clean = {
       vatPercentage: Math.max(0, Number(nextState.vatPercentage) || 0),
-      entries: (nextState.entries || []).map(normalizeEntry)
+      entries: (nextState.entries || []).map(normalizeEntry),
+      reviewedMonths: nextState.reviewedMonths && typeof nextState.reviewedMonths === 'object' ? nextState.reviewedMonths : {}
     };
     localStorage.setItem(LS_KEY, JSON.stringify(clean));
     if (window.DashboardSync && window.DashboardSync.scheduleAutoSync) {
@@ -726,6 +896,40 @@ tr:last-child td { border-bottom: none; }
       totalTime,
       avgPricePerVideo: totalVideos ? totalExVat / totalVideos : 0
     };
+  }
+
+  function calcMonth(entries, key) {
+    const monthEntries = entries.filter(entry => monthKeyFromDate(entry.date) === key);
+    const knownTimeEntries = monthEntries.filter(hasKnownTime);
+    const clients = {};
+    monthEntries.forEach(entry => {
+      const client = entry.clientName || 'Client';
+      clients[client] = clients[client] || { clientName: client, totalExVat: 0, totalInclVat: 0, videos: 0, entries: 0, knownTime: 0, unknownTime: 0 };
+      clients[client].totalExVat += entry.totalExVat;
+      clients[client].totalInclVat += entry.totalInclVat;
+      clients[client].videos += entry.numberOfVideos;
+      clients[client].entries += 1;
+      if (hasKnownTime(entry)) clients[client].knownTime += Number(entry.timeSpent) || 0;
+      else clients[client].unknownTime += 1;
+    });
+    return {
+      key,
+      label: monthLabel(key),
+      entries: monthEntries.slice().sort((a, b) => String(b.date).localeCompare(String(a.date)) || ((b.createdAt || 0) - (a.createdAt || 0))),
+      totalExVat: monthEntries.reduce((sum, entry) => sum + entry.totalExVat, 0),
+      totalInclVat: monthEntries.reduce((sum, entry) => sum + entry.totalInclVat, 0),
+      totalVideos: monthEntries.reduce((sum, entry) => sum + entry.numberOfVideos, 0),
+      knownTime: knownTimeEntries.reduce((sum, entry) => sum + (Number(entry.timeSpent) || 0), 0),
+      unknownTime: monthEntries.length - knownTimeEntries.length,
+      entryCount: monthEntries.length,
+      clients: Object.values(clients).sort((a, b) => b.totalExVat - a.totalExVat || a.clientName.localeCompare(b.clientName))
+    };
+  }
+
+  function monthlySummaries(entries) {
+    const keys = Array.from(new Set(entries.map(entry => monthKeyFromDate(entry.date))));
+    if (!keys.includes(currentMonthKey())) keys.push(currentMonthKey());
+    return keys.sort((a, b) => b.localeCompare(a)).map(key => calcMonth(entries, key));
   }
 
   function smoothPath(points) {
@@ -844,6 +1048,55 @@ tr:last-child td { border-bottom: none; }
     if (empty) empty.style.display = rows.length ? 'none' : 'block';
     renderSortButtons();
   }
+  function renderMonthlyHistory(s) {
+    const summaries = monthlySummaries(s.entries);
+    const reviewed = s.reviewedMonths || {};
+    if (!selectedMonthKey || !summaries.some(month => month.key === selectedMonthKey)) {
+      selectedMonthKey = summaries[0] ? summaries[0].key : currentMonthKey();
+    }
+    const grid = document.getElementById('monthlyHistory');
+    if (grid) {
+      grid.innerHTML = summaries.map(month =>
+        '<button class="month-card' + (month.key === selectedMonthKey ? ' is-active' : '') + '" type="button" data-month="' + escapeHtml(month.key) + '">' +
+          '<div class="month-card-title"><span>' + escapeHtml(month.label) + '</span>' + (reviewed[month.key] ? '<span class="reviewed-badge">Reviewed</span>' : '') + '</div>' +
+          '<div class="month-card-meta">' +
+            '<div>' + money(month.totalExVat) + ' ex-BTW</div>' +
+            '<div>' + money(month.totalInclVat) + ' incl. BTW</div>' +
+            '<div>' + month.totalVideos + ' videos &middot; ' + month.entryCount + (month.entryCount === 1 ? ' entry' : ' entries') + '</div>' +
+            '<div>' + escapeHtml(hoursKnown(month.knownTime, month.unknownTime)) + '</div>' +
+          '</div>' +
+        '</button>'
+      ).join('');
+      grid.querySelectorAll('[data-month]').forEach(btn => btn.addEventListener('click', () => {
+        selectedMonthKey = btn.dataset.month;
+        render();
+      }));
+    }
+    renderMonthDetail(summaries.find(month => month.key === selectedMonthKey) || summaries[0] || calcMonth([], currentMonthKey()), reviewed);
+  }
+  function renderMonthDetail(month, reviewed) {
+    const detail = document.getElementById('monthDetail');
+    if (!detail || !month) return;
+    const clientRows = month.clients.length ? month.clients.map(client =>
+      '<div class="client-row"><div><strong>' + escapeHtml(client.clientName) + '</strong><span>' + client.videos + ' videos &middot; ' + client.entries + (client.entries === 1 ? ' entry' : ' entries') + ' &middot; ' + escapeHtml(hoursKnown(client.knownTime, client.unknownTime)) + '</span></div><div class="amount good">' + money(client.totalExVat) + '</div></div>'
+    ).join('') : '<div class="empty">No client totals for this month.</div>';
+    const entryRows = month.entries.length ? month.entries.map(entry =>
+      '<div class="month-entry-row"><div><strong>' + escapeHtml(entry.clientName || 'Client') + '</strong><span>' + escapeHtml(entry.date) + ' &middot; ' + entry.numberOfVideos + ' videos' + (entry.note ? ' &middot; ' + escapeHtml(entry.note) : '') + '</span></div><div class="amount">' + money(entry.totalExVat) + '</div></div>'
+    ).join('') : '<div class="empty">No editing entries for this month.</div>';
+    detail.innerHTML =
+      '<div class="month-detail-title">' + escapeHtml(month.label) + '</div>' +
+      (reviewed[month.key] ? '<div class="month-detail-meta">Reviewed ' + escapeHtml(new Date(reviewed[month.key].reviewedAt || Date.now()).toLocaleDateString()) + '</div>' : '') +
+      '<div class="month-detail-grid">' +
+        '<div class="month-mini-stat"><div class="month-mini-label">Earned ex-BTW</div><div class="month-mini-value good">' + money(month.totalExVat) + '</div></div>' +
+        '<div class="month-mini-stat"><div class="month-mini-label">Earned incl. BTW</div><div class="month-mini-value good">' + money(month.totalInclVat) + '</div></div>' +
+        '<div class="month-mini-stat"><div class="month-mini-label">Videos</div><div class="month-mini-value">' + month.totalVideos + '</div></div>' +
+        '<div class="month-mini-stat"><div class="month-mini-label">Known time</div><div class="month-mini-value">' + escapeHtml(hoursKnown(month.knownTime, month.unknownTime)) + '</div></div>' +
+      '</div>' +
+      '<div class="form-title">Client breakdown</div>' +
+      '<div class="client-breakdown">' + clientRows + '</div>' +
+      '<div class="form-title">Entries</div>' +
+      '<div class="month-entry-list">' + entryRows + '</div>';
+  }
   function render() {
     const s = state();
     const c = calc(s.entries, s.vatPercentage);
@@ -854,6 +1107,7 @@ tr:last-child td { border-bottom: none; }
     setText('totalTime', hours(c.totalTime));
     renderChart(s.entries);
     renderTable(s.entries, s.vatPercentage);
+    renderMonthlyHistory(s);
   }
 
   function matchesImportShape(entry, item) {
@@ -942,13 +1196,14 @@ tr:last-child td { border-bottom: none; }
     const vatPercentage = Math.max(0, fieldNumber('vatPercentage') || 0);
     const numberOfVideos = Math.max(1, Math.floor(fieldNumber('videoCount')));
     const pricePerVideoExVat = Math.max(0, fieldNumber('pricePerVideo'));
+    const rawTime = fieldValue('timeSpent');
     return normalizeEntry({
       id: existing ? existing.id : id(),
       date: fieldValue('entryDate') || today(),
       clientName: fieldValue('clientName') || 'Client',
       numberOfVideos,
       pricePerVideoExVat,
-      timeSpent: Math.max(0, fieldNumber('timeSpent')),
+      timeSpent: rawTime === '' ? '' : Math.max(0, Number(rawTime) || 0),
       note: fieldValue('entryNote'),
       vatPercentage,
       createdAt: existing ? existing.createdAt : Date.now(),
@@ -1019,6 +1274,24 @@ tr:last-child td { border-bottom: none; }
     save(s);
     render();
   }
+  function archiveCurrentMonth() {
+    const s = state();
+    const key = currentMonthKey();
+    const month = calcMonth(s.entries, key);
+    s.reviewedMonths = s.reviewedMonths || {};
+    s.reviewedMonths[key] = {
+      reviewedAt: Date.now(),
+      totalExVat: month.totalExVat,
+      totalInclVat: month.totalInclVat,
+      totalVideos: month.totalVideos,
+      knownTime: month.knownTime,
+      unknownTime: month.unknownTime,
+      entryCount: month.entryCount
+    };
+    selectedMonthKey = key;
+    save(s);
+    render();
+  }
   function handleSort(event) {
     const btn = event.target.closest('.sort-btn');
     if (!btn) return;
@@ -1032,6 +1305,7 @@ tr:last-child td { border-bottom: none; }
   document.getElementById('entryForm').addEventListener('submit', submitEntry);
   document.getElementById('cancelEditBtn').addEventListener('click', () => { resetForm(); render(); });
   document.getElementById('importOverviewBtn').addEventListener('click', importCurrentOverview);
+  document.getElementById('archiveMonthBtn').addEventListener('click', archiveCurrentMonth);
   document.getElementById('vatPercentage').addEventListener('change', saveVatSetting);
   document.querySelector('.table-wrap').addEventListener('click', handleAction);
   document.querySelector('thead').addEventListener('click', handleSort);

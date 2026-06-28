@@ -10,6 +10,8 @@
 (function () {
   'use strict';
 
+  const SHOW_STACK_NAV = false;
+
   // -------- CSS --------
   const css = `
 .topbar {
@@ -174,11 +176,13 @@ body.topbar-modal-open {
     <span class="topbar-pill-label">GOALS</span>
     <span class="topbar-pill-count" id="topbarGoalsCount">—/—</span>
   </a>
+  ${SHOW_STACK_NAV ? `
   <a href="health.html" class="topbar-pill" id="topbarStack">
     <span class="topbar-pill-dot"></span>
     <span class="topbar-pill-label">STACK</span>
     <span class="topbar-pill-count" id="topbarStackCount">—/—</span>
   </a>
+  ` : ''}
   <div class="topbar-water-wrap">
     <a href="po-water.html" class="topbar-water-pill" id="topbarWater">
       <span class="topbar-pill-dot"></span>
@@ -305,13 +309,15 @@ body.topbar-modal-open {
 
     document.getElementById('topbarGoalsCount').textContent =
       g.total ? g.done + '/' + g.total : '0/0';
-    document.getElementById('topbarStackCount').textContent =
-      s.total ? s.done + '/' + s.total : '0/0';
+    if (stackEl) {
+      document.getElementById('topbarStackCount').textContent =
+        s.total ? s.done + '/' + s.total : '0/0';
+    }
     document.getElementById('topbarWaterCount').textContent =
       w.total ? w.done + '/' + w.total : '0/0';
 
     setPillStatus(goalsEl, classifyStatus(g.done, g.total));
-    setPillStatus(stackEl, classifyStatus(s.done, s.total));
+    if (stackEl) setPillStatus(stackEl, classifyStatus(s.done, s.total));
     setPillStatus(waterEl, classifyStatus(w.done, w.total));
   }
 

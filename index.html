@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#050506">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Dashboard">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
 <title>My Dashboard</title>
 <script src="supabase-sync.js"></script>
 <script src="topbar.js" defer></script>
@@ -592,6 +596,19 @@ body::after {
   body { padding: max(20px, env(safe-area-inset-top)) 14px 50px; }
   .gm-card { padding: 16px; }
   .gm-progress-num { font-size: 36px; }
+}
+
+@media (max-width: 768px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+  button,
+  .gm-add,
+  .gm-polish {
+    font-size: 16px;
+  }
 }
 </style>
 </head>
