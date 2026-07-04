@@ -690,12 +690,6 @@ tr:last-child td { border-bottom: none; }
     </form>
   </section>
 
-  <section class="form-card import-card" aria-label="Import editing overview">
-    <button class="btn btn-primary" id="importOverviewBtn" type="button">Import current editing overview</button>
-    <p class="import-copy">Imports the current overview entries once and updates known older mistakes without changing BTW settings or manual entry behavior.</p>
-    <div class="import-status" id="importOverviewStatus" aria-live="polite"></div>
-  </section>
-
   <div class="section-h">
     <span class="section-label">Overview</span>
     <span class="entry-count" id="entryCount">0 entries</span>
@@ -723,7 +717,6 @@ tr:last-child td { border-bottom: none; }
   <section class="form-card monthly-history" aria-label="Monthly Editing History">
     <div class="monthly-head">
       <div class="form-title">Monthly Editing History</div>
-      <button class="btn" id="archiveMonthBtn" type="button">Archive current month</button>
     </div>
     <div class="month-grid" id="monthlyHistory"></div>
     <div class="month-detail" id="monthDetail"></div>
@@ -1050,15 +1043,12 @@ tr:last-child td { border-bottom: none; }
   }
   function renderMonthlyHistory(s) {
     const summaries = monthlySummaries(s.entries);
-    const reviewed = s.reviewedMonths || {};
-    if (!selectedMonthKey || !summaries.some(month => month.key === selectedMonthKey)) {
-      selectedMonthKey = summaries[0] ? summaries[0].key : currentMonthKey();
-    }
+    if (selectedMonthKey && !summaries.some(month => month.key === selectedMonthKey)) selectedMonthKey = null;
     const grid = document.getElementById('monthlyHistory');
     if (grid) {
       grid.innerHTML = summaries.map(month =>
         '<button class="month-card' + (month.key === selectedMonthKey ? ' is-active' : '') + '" type="button" data-month="' + escapeHtml(month.key) + '">' +
-          '<div class="month-card-title"><span>' + escapeHtml(month.label) + '</span>' + (reviewed[month.key] ? '<span class="reviewed-badge">Reviewed</span>' : '') + '</div>' +
+          '<div class="month-card-title"><span>' + escapeHtml(month.label) + '</span></div>' +
           '<div class="month-card-meta">' +
             '<div>' + money(month.totalExVat) + ' ex-BTW</div>' +
             '<div>' + money(month.totalInclVat) + ' incl. BTW</div>' +
@@ -1068,15 +1058,21 @@ tr:last-child td { border-bottom: none; }
         '</button>'
       ).join('');
       grid.querySelectorAll('[data-month]').forEach(btn => btn.addEventListener('click', () => {
-        selectedMonthKey = btn.dataset.month;
+        selectedMonthKey = selectedMonthKey === btn.dataset.month ? null : btn.dataset.month;
         render();
       }));
     }
-    renderMonthDetail(summaries.find(month => month.key === selectedMonthKey) || summaries[0] || calcMonth([], currentMonthKey()), reviewed);
+    renderMonthDetail(summaries.find(month => month.key === selectedMonthKey) || null);
   }
-  function renderMonthDetail(month, reviewed) {
+  function renderMonthDetail(month) {
     const detail = document.getElementById('monthDetail');
-    if (!detail || !month) return;
+    if (!detail) return;
+    if (!month) {
+      detail.hidden = true;
+      detail.innerHTML = '';
+      return;
+    }
+    detail.hidden = false;
     const clientRows = month.clients.length ? month.clients.map(client =>
       '<div class="client-row"><div><strong>' + escapeHtml(client.clientName) + '</strong><span>' + client.videos + ' videos &middot; ' + client.entries + (client.entries === 1 ? ' entry' : ' entries') + ' &middot; ' + escapeHtml(hoursKnown(client.knownTime, client.unknownTime)) + '</span></div><div class="amount good">' + money(client.totalExVat) + '</div></div>'
     ).join('') : '<div class="empty">No client totals for this month.</div>';
@@ -1085,7 +1081,6 @@ tr:last-child td { border-bottom: none; }
     ).join('') : '<div class="empty">No editing entries for this month.</div>';
     detail.innerHTML =
       '<div class="month-detail-title">' + escapeHtml(month.label) + '</div>' +
-      (reviewed[month.key] ? '<div class="month-detail-meta">Reviewed ' + escapeHtml(new Date(reviewed[month.key].reviewedAt || Date.now()).toLocaleDateString()) + '</div>' : '') +
       '<div class="month-detail-grid">' +
         '<div class="month-mini-stat"><div class="month-mini-label">Earned ex-BTW</div><div class="month-mini-value good">' + money(month.totalExVat) + '</div></div>' +
         '<div class="month-mini-stat"><div class="month-mini-label">Earned incl. BTW</div><div class="month-mini-value good">' + money(month.totalInclVat) + '</div></div>' +
@@ -1106,7 +1101,7 @@ tr:last-child td { border-bottom: none; }
     setText('totalVideos', String(currentMonth.totalVideos));
     setText('totalTime', hours(currentMonth.knownTime));
     renderChart(currentMonth.entries);
-    renderTable(s.entries, s.vatPercentage);
+    renderTable(currentMonth.entries, s.vatPercentage);
     renderMonthlyHistory(s);
   }
 
@@ -1274,24 +1269,6 @@ tr:last-child td { border-bottom: none; }
     save(s);
     render();
   }
-  function archiveCurrentMonth() {
-    const s = state();
-    const key = currentMonthKey();
-    const month = calcMonth(s.entries, key);
-    s.reviewedMonths = s.reviewedMonths || {};
-    s.reviewedMonths[key] = {
-      reviewedAt: Date.now(),
-      totalExVat: month.totalExVat,
-      totalInclVat: month.totalInclVat,
-      totalVideos: month.totalVideos,
-      knownTime: month.knownTime,
-      unknownTime: month.unknownTime,
-      entryCount: month.entryCount
-    };
-    selectedMonthKey = key;
-    save(s);
-    render();
-  }
   function handleSort(event) {
     const btn = event.target.closest('.sort-btn');
     if (!btn) return;
@@ -1304,8 +1281,6 @@ tr:last-child td { border-bottom: none; }
   document.getElementById('entryDate').value = today();
   document.getElementById('entryForm').addEventListener('submit', submitEntry);
   document.getElementById('cancelEditBtn').addEventListener('click', () => { resetForm(); render(); });
-  document.getElementById('importOverviewBtn').addEventListener('click', importCurrentOverview);
-  document.getElementById('archiveMonthBtn').addEventListener('click', archiveCurrentMonth);
   document.getElementById('vatPercentage').addEventListener('change', saveVatSetting);
   document.querySelector('.table-wrap').addEventListener('click', handleAction);
   document.querySelector('thead').addEventListener('click', handleSort);
