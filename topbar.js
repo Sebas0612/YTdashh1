@@ -130,6 +130,13 @@
   .topbar-water-add { width: 32px; font-size: 16px; }
 }
 
+/* iOS Home Screen apps draw a scroll-edge blur below the status-bar inset. */
+@supports (-webkit-touch-callout: none) {
+  @media (display-mode: standalone) and (hover: none) and (pointer: coarse) {
+    .topbar { padding-top: max(28px, calc(env(safe-area-inset-top) + 18px)); }
+  }
+}
+
 /* === Global mobile lockdown ===
    1) Hide the right-side scrollbar on phones (iOS uses overlay scrollbars anyway).
    2) Stop iOS auto-text-size-adjust.
