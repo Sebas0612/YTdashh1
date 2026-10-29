@@ -22,7 +22,7 @@
   width: 100%;
   display: flex; gap: 12px;
   align-items: center;
-  justify-content: space-evenly;
+  justify-content: space-between;
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
@@ -123,7 +123,7 @@
 }
 
 @media (max-width: 480px) {
-  .topbar { justify-content: flex-start; padding-left: max(10px, env(safe-area-inset-left)); padding-right: max(10px, env(safe-area-inset-right)); gap: 8px; }
+  .topbar { justify-content: space-between; padding-left: max(10px, env(safe-area-inset-left)); padding-right: max(10px, env(safe-area-inset-right)); gap: 0; }
   .topbar-pill, .topbar-water-pill { padding: 7px 9px; gap: 5px; }
   .topbar-pill-label { font-size: 9px; letter-spacing: 0.10em; }
   .topbar-pill-count { font-size: 11px; }
