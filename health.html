@@ -9,6 +9,7 @@
 <meta name="apple-mobile-web-app-title" content="Dashboard">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="dashboard-icon-180.png">
 <title>Daily Stack — Customizable Template</title>
 <script src="supabase-sync.js"></script>
 <script src="topbar.js" defer></script>
@@ -1035,6 +1036,9 @@ main {
 
   render();
   startTicker();
+  window.addEventListener('dashboard-sync-local-applied', event => {
+    if (!event.detail || event.detail.appKey === 'health') render();
+  });
 })();
 </script>
 

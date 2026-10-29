@@ -21,6 +21,7 @@ Contact: rowan.wisere@gmail.com
 <meta name="apple-mobile-web-app-title" content="Dashboard">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="dashboard-icon-180.png">
 <title>Water Coach</title>
 <script src="supabase-sync.js"></script>
 <script src="topbar.js" defer></script>
@@ -705,8 +706,6 @@ html, body {
   // ============================================================
   const LS_KEY = 'po_water_v1';
   const SUPABASE_APP_KEY = 'water';
-  let syncPushTimer = null;
-  let syncSuppressPush = false;
 
   function loadState() {
     try {
@@ -922,44 +921,11 @@ html, body {
   function renderAll() { renderDayPill(); renderWater(); }
 
   function scheduleSupabaseSave() {
-    if (syncSuppressPush) return;
-    if (!window.DashboardSync || !window.DashboardSync.isConfigured()) return;
-    clearTimeout(syncPushTimer);
-    syncPushTimer = setTimeout(async () => {
-      try {
-        const user = await window.DashboardSync.getCurrentUser();
-        if (!user) return;
-        await window.DashboardSync.saveAppState(SUPABASE_APP_KEY, { [LS_KEY]: state });
-      } catch (e) {}
-    }, 300);
+    if (window.DashboardSync) window.DashboardSync.scheduleAutoSync(SUPABASE_APP_KEY);
   }
 
   async function pullSupabaseWaterState() {
-    if (!window.DashboardSync || !window.DashboardSync.isConfigured()) return;
-    try {
-      const user = await window.DashboardSync.getCurrentUser();
-      if (!user) return;
-      const remote = await window.DashboardSync.loadAppState(SUPABASE_APP_KEY);
-      if (!remote || !remote[LS_KEY]) {
-        scheduleSupabaseSave();
-        return;
-      }
-      const incoming = JSON.stringify(normalize(remote[LS_KEY]));
-      const local = localStorage.getItem(LS_KEY);
-      if (local) {
-        if (incoming !== local) scheduleSupabaseSave();
-        return;
-      }
-      if (incoming === local) return;
-      syncSuppressPush = true;
-      state = normalize(remote[LS_KEY]);
-      try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {}
-      syncSuppressPush = false;
-      renderSettings();
-      renderAll();
-    } catch (e) {
-      syncSuppressPush = false;
-    }
+    if (window.DashboardSync) await window.DashboardSync.pullAppFromCloud(SUPABASE_APP_KEY);
   }
 
   // ============================================================
@@ -1165,6 +1131,12 @@ html, body {
   renderAll();
   pullSupabaseWaterState();
   window.addEventListener('dashboard-sync-auth-changed', pullSupabaseWaterState);
+  window.addEventListener('dashboard-sync-local-applied', event => {
+    if (event.detail && event.detail.appKey !== SUPABASE_APP_KEY) return;
+    state = loadState();
+    renderSettings();
+    renderAll();
+  });
 })();
 </script>
 <style>

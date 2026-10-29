@@ -8,6 +8,7 @@
 <meta name="apple-mobile-web-app-title" content="Dashboard">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="dashboard-icon-180.png">
 <title>Dashboard Sync</title>
 <script src="supabase-sync.js"></script>
 <style>
@@ -106,6 +107,8 @@ button {
 }
 button.primary { background: rgba(125,211,252,0.16); border-color: rgba(125,211,252,0.26); }
 button.danger { color: var(--bad); border-color: rgba(255,138,138,0.22); background: rgba(255,138,138,0.08); }
+.signed-in #credentialGrid, .signed-in #loginBtn, .signed-in #createBtn, .signed-in #recoverBtn { display: none; }
+.conflict-row { border-top: 1px solid var(--border); padding-top: 12px; margin-top: 12px; }
 .status {
   display: grid;
   gap: 8px;
@@ -170,8 +173,8 @@ button.danger { color: var(--bad); border-color: rgba(255,138,138,0.22); backgro
     <div class="app-list" id="appList"></div>
   </section>
 
-  <section class="card">
-    <div class="grid">
+  <section class="card" id="authCard">
+    <div class="grid" id="credentialGrid">
       <div>
         <label for="syncEmail">Email</label>
         <input id="syncEmail" type="email" autocomplete="email" placeholder="you@example.com">
@@ -184,17 +187,26 @@ button.danger { color: var(--bad); border-color: rgba(255,138,138,0.22); backgro
     <div class="actions">
       <button class="primary" id="loginBtn" type="button">Log in</button>
       <button id="createBtn" type="button">Create account</button>
+      <button id="recoverBtn" type="button">Forgot password?</button>
       <button class="danger" id="logoutBtn" type="button">Log out</button>
     </div>
     <div class="msg" id="authMsg" aria-live="polite"></div>
   </section>
 
+  <section class="card" id="recoveryCard" hidden>
+    <label for="newPassword">New dashboard password</label>
+    <input id="newPassword" type="password" autocomplete="new-password" placeholder="New password">
+    <div class="actions"><button class="primary" id="updatePasswordBtn" type="button">Set new password</button></div>
+    <div class="msg" id="recoveryMsg" aria-live="polite"></div>
+  </section>
+
   <section class="card">
     <div class="actions" style="margin-top:0">
-      <button class="primary" id="pushBtn" type="button">Sync local data to cloud</button>
-      <button id="pullBtn" type="button">Load cloud data to this device</button>
+      <button class="primary" id="pushBtn" type="button">Sync now</button>
+      <button id="pullBtn" type="button">Check cloud updates</button>
     </div>
     <div class="msg" id="syncMsg" aria-live="polite"></div>
+    <div id="conflictList"></div>
   </section>
 </main>
 
@@ -222,11 +234,54 @@ button.danger { color: var(--bad); border-color: rgba(255,138,138,0.22); backgro
     $('cfgStatus').textContent = sync && sync.isConfigured() ? 'Configured' : 'Not configured';
     const user = sync ? await sync.getCurrentUser() : null;
     $('authStatus').textContent = user ? 'Signed in' : 'Signed out';
+    $('authCard').classList.toggle('signed-in', !!user);
+    $('logoutBtn').hidden = !user;
     $('pwaStatus').textContent = sync && sync.isStandalonePwa && sync.isStandalonePwa() ? 'Standalone app' : 'Browser tab';
     $('accountStatus').textContent = user && user.email ? user.email : '-';
     $('appList').innerHTML = (sync ? sync.APP_KEYS : []).map(app =>
       '<div class="app-pill">' + app + '</div>'
     ).join('');
+    const conflicts = sync ? sync.getConflicts() : [];
+    $('conflictList').replaceChildren();
+    conflicts.forEach(conflict => {
+      const row = document.createElement('div');
+      row.className = 'conflict-row';
+      const label = document.createElement('div');
+      label.textContent = 'Sync conflict in ' + conflict.appKey + ' (' + conflict.keys.join(', ') + '). Choose which saved copy to keep.';
+      const actions = document.createElement('div');
+      actions.className = 'actions';
+      const download = document.createElement('button');
+      download.type = 'button';
+      download.textContent = 'Download both copies';
+      download.addEventListener('click', async () => {
+        try {
+          const copies = await sync.getConflictCopies(conflict.appKey);
+          const url = URL.createObjectURL(new Blob([JSON.stringify(copies, null, 2)], { type: 'application/json' }));
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = 'dashboard-conflict-' + conflict.appKey + '.json';
+          link.click();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+        } catch (err) { setMsg('syncMsg', err.message || 'Could not prepare the download.', 'bad'); }
+      });
+      actions.appendChild(download);
+      [['local', 'Keep this device'], ['cloud', 'Use cloud copy']].forEach(([choice, title]) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = title;
+        button.addEventListener('click', async () => {
+          if (!confirm('Resolve ' + conflict.appKey + ' using ' + title.toLowerCase() + '? This replaces the other copy. Download both copies first if you want a backup.')) return;
+          try {
+            await sync.resolveConflict(conflict.appKey, choice);
+            setMsg('syncMsg', 'Conflict resolved.', 'ok');
+            await refreshStatus();
+          } catch (err) { setMsg('syncMsg', err.message || 'Could not resolve conflict.', 'bad'); }
+        });
+        actions.appendChild(button);
+      });
+      row.append(label, actions);
+      $('conflictList').appendChild(row);
+    });
   }
 
   $('loginBtn').addEventListener('click', async () => {
@@ -236,9 +291,16 @@ button.danger { color: var(--bad); border-color: rgba(255,138,138,0.22); backgro
       const res = await DashboardSync.signInWithPassword(c.email, c.password);
       if (res && res.error) throw res.error;
       setMsg('authMsg', 'Logged in. Merging cloud data...', 'ok');
-      await DashboardSync.pullAllFromCloud({ mode: 'merge' });
+      const syncResult = await DashboardSync.pullAllFromCloud();
       await refreshStatus();
-      setMsg('authMsg', 'Logged in. Cloud data was merged without wiping local data.', 'ok');
+      if (!syncResult.ok) {
+        setMsg('authMsg', 'Logged in. Review pending sync or conflicts below.', 'bad');
+        return;
+      }
+      setMsg('authMsg', 'Logged in. Cloud data is available.', 'ok');
+      const requested = new URLSearchParams(location.search).get('return');
+      if (requested && /^(index|gym|finance|editing|health|po-water)\.html$/.test(requested)) location.replace(requested);
+      else if (DashboardSync.isStandalonePwa()) location.replace('index.html');
     } catch (err) {
       setMsg('authMsg', err && err.message ? err.message : 'Login failed.', 'bad');
     }
@@ -257,6 +319,29 @@ button.danger { color: var(--bad); border-color: rgba(255,138,138,0.22); backgro
     }
   });
 
+  $('recoverBtn').addEventListener('click', async () => {
+    try {
+      const email = $('syncEmail').value.trim();
+      if (!email) throw new Error('Enter your existing dashboard email first.');
+      const result = await DashboardSync.sendPasswordRecovery(email);
+      if (result.error) throw result.error;
+      setMsg('authMsg', 'Check your email for the password recovery link.', 'ok');
+    } catch (err) { setMsg('authMsg', err.message || 'Recovery email failed.', 'bad'); }
+  });
+
+  $('updatePasswordBtn').addEventListener('click', async () => {
+    try {
+      const password = $('newPassword').value;
+      if (password.length < 6) throw new Error('Use at least six characters.');
+      const result = await DashboardSync.updatePassword(password);
+      if (result.error) throw result.error;
+      $('newPassword').value = '';
+      $('recoveryCard').hidden = true;
+      setMsg('authMsg', 'Password updated. Your existing account and data are preserved.', 'ok');
+      await refreshStatus();
+    } catch (err) { setMsg('recoveryMsg', err.message || 'Password update failed.', 'bad'); }
+  });
+
   $('logoutBtn').addEventListener('click', async () => {
     try {
       await DashboardSync.signOut();
@@ -269,10 +354,11 @@ button.danger { color: var(--bad); border-color: rgba(255,138,138,0.22); backgro
 
   $('pushBtn').addEventListener('click', async () => {
     try {
-      setMsg('syncMsg', 'Uploading local data...');
+      setMsg('syncMsg', 'Checking local and cloud changes...');
       const res = await DashboardSync.pushAllToCloud();
-      if (!res || !res.ok) throw new Error('Log in first.');
-      setMsg('syncMsg', 'Local data uploaded to cloud.', 'ok');
+      if (!res || !res.ok) throw new Error('Sync is pending or needs conflict review.');
+      setMsg('syncMsg', 'Local and cloud data are synchronized.', 'ok');
+      await refreshStatus();
     } catch (err) {
       setMsg('syncMsg', err && err.message ? err.message : 'Upload failed.', 'bad');
     }
@@ -281,15 +367,21 @@ button.danger { color: var(--bad); border-color: rgba(255,138,138,0.22); backgro
   $('pullBtn').addEventListener('click', async () => {
     try {
       setMsg('syncMsg', 'Loading cloud data...');
-      const res = await DashboardSync.pullAllFromCloud({ mode: 'replace' });
-      if (!res || !res.ok) throw new Error('Log in first.');
-      setMsg('syncMsg', 'Cloud data loaded to this device. Open a dashboard page to see it.', 'ok');
+      const res = await DashboardSync.pullAllFromCloud();
+      if (!res || !res.ok) throw new Error('Some changes are pending or need conflict review.');
+      setMsg('syncMsg', 'Cloud updates checked safely.', 'ok');
+      await refreshStatus();
     } catch (err) {
       setMsg('syncMsg', err && err.message ? err.message : 'Download failed.', 'bad');
     }
   });
 
   window.addEventListener('dashboard-sync-auth-changed', refreshStatus);
+  DashboardSync.getSupabaseClient().then(client => {
+    if (client) client.auth.onAuthStateChange(event => {
+      if (event === 'PASSWORD_RECOVERY') $('recoveryCard').hidden = false;
+    });
+  });
   refreshStatus();
 })();
 </script>

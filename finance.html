@@ -8,6 +8,7 @@
 <meta name="apple-mobile-web-app-title" content="Dashboard">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="dashboard-icon-180.png">
 <title>Finances</title>
 <script src="supabase-sync.js"></script>
 <script src="topbar.js" defer></script>
@@ -4719,6 +4720,17 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   }
   safeRenderTicker();
   setInterval(safeRenderTicker, 1500);
+
+  window.addEventListener('dashboard-sync-local-applied', event => {
+    if (event.detail && event.detail.appKey !== 'finance') return;
+    renderAllNetWorth();
+    renderSubs();
+    renderWishlist();
+    renderOrders();
+    vRender();
+    buxRender();
+    safeRenderTicker();
+  });
 
 })();
 </script>

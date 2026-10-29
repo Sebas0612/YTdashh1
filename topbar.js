@@ -11,6 +11,7 @@
   'use strict';
 
   const SHOW_STACK_NAV = false;
+  const SHOW_WATER_NAV = false; // Restore the Water tab and quick add by setting this to true.
 
   // -------- CSS --------
   const css = `
@@ -183,6 +184,7 @@ body.topbar-modal-open {
     <span class="topbar-pill-count" id="topbarStackCount">—/—</span>
   </a>
   ` : ''}
+  ${SHOW_WATER_NAV ? `
   <div class="topbar-water-wrap">
     <a href="po-water.html" class="topbar-water-pill" id="topbarWater">
       <span class="topbar-pill-dot"></span>
@@ -191,6 +193,7 @@ body.topbar-modal-open {
     </a>
     <button class="topbar-water-add" id="topbarWaterAdd" aria-label="Log one drink" type="button">+</button>
   </div>
+  ` : ''}
   <a href="gym.html" class="topbar-pill" id="topbarGym">
     <span class="topbar-pill-dot"></span>
     <span class="topbar-pill-label">GYM</span>
@@ -313,12 +316,12 @@ body.topbar-modal-open {
       document.getElementById('topbarStackCount').textContent =
         s.total ? s.done + '/' + s.total : '0/0';
     }
-    document.getElementById('topbarWaterCount').textContent =
+    if (waterEl) document.getElementById('topbarWaterCount').textContent =
       w.total ? w.done + '/' + w.total : '0/0';
 
     setPillStatus(goalsEl, classifyStatus(g.done, g.total));
     if (stackEl) setPillStatus(stackEl, classifyStatus(s.done, s.total));
-    setPillStatus(waterEl, classifyStatus(w.done, w.total));
+    if (waterEl) setPillStatus(waterEl, classifyStatus(w.done, w.total));
   }
 
   // -------- Water +1 (works from any page) --------
@@ -424,6 +427,7 @@ body.topbar-modal-open {
     // Re-render when localStorage changes from another tab/window OR when
     // the page becomes visible (sync may have pulled in the background).
     window.addEventListener('storage', render);
+    window.addEventListener('dashboard-sync-local-applied', render);
     window.addEventListener('focus', render);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
 

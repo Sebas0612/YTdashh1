@@ -52,19 +52,33 @@
   };
 
   let client = null;
+  let clientPromise = null;
   let sdkPromise = null;
   let booted = false;
   let suppressStorageSync = false;
   let statusEl = null;
   let statusTimer = null;
-  const pendingLocalChanges = {};
+  const META_KEY = 'dashboard-sync-meta-v2';
+  let meta;
+  try { meta = JSON.parse(localStorage.getItem(META_KEY)) || {}; } catch (_) { meta = {}; }
+  meta.apps = meta.apps || {};
+  const revisions = {};
+  const running = {};
   const timers = {};
+  const retryTimers = {};
 
   const storageProto = Object.getPrototypeOf(localStorage);
   const nativeSetItem = storageProto && storageProto.setItem ? storageProto.setItem : localStorage.setItem;
   const nativeRemoveItem = storageProto && storageProto.removeItem ? storageProto.removeItem : localStorage.removeItem;
   const originalSetItem = function (key, value) { nativeSetItem.call(localStorage, key, value); };
   const originalRemoveItem = function (key) { nativeRemoveItem.call(localStorage, key); };
+  function saveMeta() {
+    try { originalSetItem(META_KEY, JSON.stringify(meta)); }
+    catch (err) { warnSync('Could not persist sync queue.', err); }
+  }
+  function appMeta(appKey) {
+    return meta.apps[appKey] || (meta.apps[appKey] = { base: null, version: null, pending: false, conflict: null });
+  }
 
   function isConfigured() {
     return !!SUPABASE_URL &&
@@ -90,7 +104,7 @@
       script.onload = () => resolve(window.supabase);
       script.onerror = reject;
       document.head.appendChild(script);
-    });
+    }).catch(err => { sdkPromise = null; throw err; });
     return sdkPromise;
   }
 
@@ -104,23 +118,27 @@
   async function getSupabaseClient() {
     if (!isConfigured()) return null;
     if (client) return client;
-    const supabaseGlobal = await loadSupabaseSdk();
-    if (!supabaseGlobal) return null;
-    client = supabaseGlobal.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true
-      }
-    });
-    return client;
+    if (!clientPromise) clientPromise = loadSupabaseSdk().then(supabaseGlobal => {
+      if (!supabaseGlobal) return null;
+      client = supabaseGlobal.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+      });
+      return client;
+    }).catch(err => { clientPromise = null; throw err; });
+    return clientPromise;
   }
 
   async function getCurrentUser() {
     const supa = await getSupabaseClient();
     if (!supa) return null;
     const { data, error } = await supa.auth.getUser();
-    if (error) return null;
+    if (error) {
+      if (!navigator.onLine || error.name === 'AuthRetryableFetchError' || error.status === 0) {
+        const cached = await supa.auth.getSession();
+        return cached.data && cached.data.session ? cached.data.session.user : null;
+      }
+      return null;
+    }
     return data && data.user ? data.user : null;
   }
 
@@ -132,6 +150,20 @@
 
   async function signInWithEmail(email, password) {
     return signInWithPassword(email, password);
+  }
+
+  async function sendPasswordRecovery(email) {
+    const supa = await getSupabaseClient();
+    if (!supa) throw new Error('Supabase is not configured.');
+    return supa.auth.resetPasswordForEmail(email, {
+      redirectTo: new URL('sync.html', window.location.href).href
+    });
+  }
+
+  async function updatePassword(password) {
+    const supa = await getSupabaseClient();
+    if (!supa) throw new Error('Supabase is not configured.');
+    return supa.auth.updateUser({ password });
   }
 
   async function createAccount(email, password) {
@@ -146,50 +178,67 @@
     return supa.auth.signOut();
   }
 
-  async function loadAppState(appKey) {
+  async function loadAppRow(appKey) {
     const supa = await getSupabaseClient();
     const user = await getCurrentUser();
-    if (!supa || !user) return null;
+    if (!supa || !user) throw new Error('Not signed in.');
     const { data, error } = await supa
       .from('app_state')
       .select('id,data,updated_at')
+      .eq('user_id', user.id)
       .eq('app_key', appKey)
       .order('updated_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (error || !data) return null;
-    return data.data || null;
+    if (error) throw error;
+    return data || null;
   }
 
-  async function saveAppState(appKey, data) {
+  async function loadAppState(appKey) {
+    const row = await loadAppRow(appKey);
+    return row ? row.data || null : null;
+  }
+
+  async function saveAppRow(appKey, data, previous) {
     const supa = await getSupabaseClient();
     const user = await getCurrentUser();
-    if (!supa || !user) return null;
+    if (!supa || !user) throw new Error('Not signed in.');
 
-    const now = new Date().toISOString();
-    const existing = await supa
-      .from('app_state')
-      .select('id')
-      .eq('app_key', appKey)
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (existing.data && existing.data.id) {
-      return supa
+    const previousTime = previous && previous.updated_at ? Date.parse(previous.updated_at) : 0;
+    const now = new Date(Math.max(Date.now(), Number.isFinite(previousTime) ? previousTime + 1 : 0)).toISOString();
+    if (previous && previous.id) {
+      const result = await supa
         .from('app_state')
         .update({ data, updated_at: now })
-        .eq('id', existing.data.id);
+        .eq('id', previous.id)
+        .eq('updated_at', previous.updated_at)
+        .select('id,updated_at')
+        .maybeSingle();
+      if (result.error) throw result.error;
+      if (!result.data) return null; // Another device wrote first; re-read and merge.
+      return result.data;
     }
 
-    return supa
+    const result = await supa
       .from('app_state')
       .insert({
         user_id: user.id,
         app_key: appKey,
         data,
         updated_at: now
-      });
+      })
+      .select('id,updated_at')
+      .maybeSingle();
+    if (result.error) throw result.error;
+    return result.data;
+  }
+
+  async function saveAppState(appKey, data) {
+    if (!isUsefulAppState(appKey, data)) throw new Error('Refusing to upload an empty dashboard state.');
+    const previous = await loadAppRow(appKey);
+    const saved = await saveAppRow(appKey, data, previous);
+    if (!saved) throw new Error('Cloud changed during upload; retry the sync.');
+    return { data: saved, error: null };
   }
 
   function parseStoredValue(key) {
@@ -313,7 +362,6 @@
     }
     if (changed) {
       window.dispatchEvent(new CustomEvent('dashboard-sync-local-applied', { detail: { appKey } }));
-      window.dispatchEvent(new Event('storage'));
     }
     return changed;
   }
@@ -324,109 +372,282 @@
     return out;
   }
 
-  async function pushAppToCloud(appKey) {
-    try {
-      const user = await getCurrentUser();
-      if (!user) {
-        setSyncStatus('Local only');
-        debugSync('sync skipped because no user', appKey);
-        return null;
-      }
-      setSyncStatus('Syncing...');
-      debugSync('app_key sync saving to Supabase', appKey);
-      const result = await saveAppState(appKey, collectAppState(appKey));
-      if (result && result.error) throw result.error;
-      pendingLocalChanges[appKey] = false;
-      setSyncStatus('Synced');
-      debugSync('app_key saved to Supabase', appKey);
-      return result;
-    } catch (err) {
-      setSyncStatus('Local only');
-      warnSync('Could not push ' + appKey + ' to Supabase. LocalStorage is still saved.', err);
-      return null;
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const has = (obj, key) => Object.prototype.hasOwnProperty.call(obj || {}, key);
+
+  function fingerprint(value) {
+    if (value === undefined) return 'missing';
+    const raw = JSON.stringify(value);
+    let a = 2166136261, b = 5381;
+    for (let i = 0; i < raw.length; i++) {
+      a = Math.imul(a ^ raw.charCodeAt(i), 16777619);
+      b = Math.imul(b, 33) ^ raw.charCodeAt(i);
     }
+    return raw.length + ':' + (a >>> 0).toString(16) + ':' + (b >>> 0).toString(16);
   }
 
-  async function pullAppFromCloud(appKey, options) {
-    const mode = options && options.mode === 'replace' ? 'replace' : 'merge';
-    const force = !!(options && options.force);
-    try {
-      if (!force && pendingLocalChanges[appKey]) {
-        debugSync('skipped pull; local changes pending', appKey);
-        return null;
-      }
-      const user = await getCurrentUser();
-      if (!user) {
-        debugSync('sync skipped because no user', appKey);
-        return null;
-      }
-      const data = await loadAppState(appKey);
-      if (!isUsefulAppState(appKey, data)) {
-        debugSync('skipped pull; no useful cloud data', appKey);
-        if (Object.keys(collectAppState(appKey)).length) schedulePush(appKey);
-        return null;
-      }
-      debugSync('loaded app_state', appKey);
-      return applyAppState(appKey, data, { mode });
-    } catch (err) {
-      warnSync('Could not pull ' + appKey + ' from Supabase. LocalStorage was left untouched.', err);
-      return null;
-    }
+  function recordBaseline(info, data) {
+    info.fingerprints = {};
+    info.base = {};
+    Object.keys(data).forEach(key => {
+      info.fingerprints[key] = fingerprint(data[key]);
+      if (key.indexOf('goals:') === 0 || key === 'gym_tracker_v2') info.base[key] = data[key];
+    });
   }
 
-  async function pushAllToCloud() {
-    try {
-      const user = await getCurrentUser();
-      if (!user) return { ok: false, reason: 'not-signed-in' };
-      for (const appKey of APP_KEYS) await saveAppState(appKey, collectAppState(appKey));
-      return { ok: true };
-    } catch (err) {
-      warnSync('Could not upload all app state to Supabase. LocalStorage is still saved.', err);
+  function mergeRecords(local, cloud, base, field) {
+    const byId = list => {
+      const counts = {};
+      return new Map((Array.isArray(list) ? list : []).map((item, index) => {
+        const text = String(item.text || '').trim().toLowerCase();
+        counts[text] = (counts[text] || 0) + 1;
+        return [String(field === 'goals' && !base ? text + ':' + counts[text] : (item.id || (field === 'goals' ? text + ':' + counts[text] : index))), item];
+      }));
+    };
+    const l = byId(local), c = byId(cloud), b = byId(base);
+    const ids = new Set([...l.keys(), ...c.keys(), ...b.keys()]);
+    const merged = [];
+    let conflict = false;
+    ids.forEach(id => {
+      const lv = l.get(id), cv = c.get(id), bv = b.get(id);
+      let chosen;
+      if (same(lv, cv)) chosen = lv;
+      else if (field === 'goals' && !base && lv && cv &&
+        lv.text === cv.text && !!lv.done === !!cv.done && !!lv.queued === !!cv.queued) chosen = lv;
+      else if (same(lv, bv)) chosen = cv;
+      else if (same(cv, bv)) chosen = lv;
+      else if (!b.has(id) && !l.has(id)) chosen = cv;
+      else if (!b.has(id) && !c.has(id)) chosen = lv;
+      else { conflict = true; chosen = lv; }
+      if (chosen !== undefined) merged.push(chosen);
+    });
+    return { data: merged, conflict };
+  }
+
+  function mergeSpecial(key, local, cloud, base) {
+    if (key.indexOf('goals:') === 0 && Array.isArray(local) && Array.isArray(cloud))
+      return mergeRecords(local, cloud, base, 'goals');
+    if (key === 'gym_tracker_v2' && local && cloud && typeof local === 'object' && typeof cloud === 'object') {
+      const workouts = mergeRecords(local.workouts, cloud.workouts, base && base.workouts, 'workouts');
+      const exercises = mergeRecords(local.exercises, cloud.exercises, base && base.exercises, 'exercises');
+      return { data: { ...cloud, ...local, workouts: workouts.data, exercises: exercises.data }, conflict: workouts.conflict || exercises.conflict };
+    }
+    return null;
+  }
+
+  function isDefaultValue(key, value) {
+    if (value == null || value === '') return true;
+    if (Array.isArray(value)) return value.length === 0;
+    if (typeof value !== 'object') return false;
+    if (!Object.keys(value).length) return true;
+    if (key === 'goal_streak_v1') return !value.count && !value.lastProcessedDate;
+    if (key === 'po_water_v1') return !Object.keys(value.logs || {}).length && !(value.substances || []).length;
+    return false;
+  }
+
+  function mergeApp(appKey, local, cloud, info) {
+    const merged = {};
+    const conflicts = [];
+    const known = info.fingerprints;
+    const base = info.base || {};
+    new Set([...Object.keys(local || {}), ...Object.keys(cloud || {}), ...Object.keys(known || {})]).forEach(key => {
+      if (!keyBelongsToApp(key, appKey)) return;
+      const lv = local && local[key], cv = cloud && cloud[key], bv = base && base[key];
+      let choice;
+      if (same(lv, cv)) choice = lv;
+      else if (known && fingerprint(lv) === (known[key] || 'missing')) choice = cv;
+      else if (known && fingerprint(cv) === (known[key] || 'missing')) choice = lv;
+      else if (!known && isDefaultValue(key, lv)) choice = cv;
+      else if (!known && isDefaultValue(key, cv)) choice = lv;
+      else if (!known && !has(local, key)) choice = cv;
+      else if (!known && !has(cloud, key)) choice = lv;
+      else {
+        const special = mergeSpecial(key, lv, cv, bv);
+        if (special) {
+          choice = special.data;
+          if (special.conflict) conflicts.push(key);
+        } else {
+          choice = lv;
+          conflicts.push(key);
+        }
+      }
+      if (key === 'gym_tracker_v2' && choice && lv && typeof choice === 'object' && typeof lv === 'object') {
+        // The workout editor's open screen and selected date belong to this device.
+        choice = { ...choice, uiMode: lv.uiMode, activeWorkoutId: lv.activeWorkoutId,
+          detailWorkoutId: lv.detailWorkoutId, selectedDate: lv.selectedDate };
+      }
+      if (choice !== undefined) merged[key] = choice;
+    });
+    return { data: merged, conflicts };
+  }
+
+  function editingCurrentApp(appKey) {
+    if (currentPageAppKey() !== appKey) return false;
+    if (document.querySelector('.modal-bg.show, .po-modal-bg.show, .wt-overlay.show, .wt-viewer.show, .picker.show')) return true;
+    const active = document.activeElement;
+    if (active && active !== document.body && active.matches && active.getClientRects().length && active.matches('input, textarea, select, [contenteditable="true"]')) return true;
+    if (appKey === 'gym') {
+      const editor = document.getElementById('workoutScreen');
+      const picker = document.getElementById('exercisePicker');
+      const detail = document.getElementById('detailScreen');
+      if ((editor && !editor.hidden) || (detail && !detail.hidden) || (picker && picker.classList.contains('show'))) return true;
+    }
+    return false;
+  }
+
+  function refreshSyncStatus() {
+    const apps = APP_KEYS.map(appMeta);
+    if (apps.some(a => a.conflict)) setSyncStatus('Sync conflict');
+    else if (!navigator.onLine) setSyncStatus(apps.some(a => a.pending || a.failed) ? 'Offline · pending' : 'Offline');
+    else if (apps.some(a => a.failed)) setSyncStatus('Sync failed');
+    else if (apps.some(a => a.pending)) setSyncStatus('Pending sync');
+    else setSyncStatus('Synced');
+  }
+
+  function getConflicts() {
+    return APP_KEYS.filter(key => appMeta(key).conflict).map(key => ({ appKey: key, keys: appMeta(key).conflict }));
+  }
+
+  async function getConflictCopies(appKey) {
+    if (!appMeta(appKey).conflict) throw new Error('There is no conflict for this app.');
+    const row = await loadAppRow(appKey);
+    return { local: collectAppState(appKey), cloud: row ? row.data : {} };
+  }
+
+  async function resolveConflict(appKey, choice) {
+    const info = appMeta(appKey);
+    if (!info.conflict || (choice !== 'local' && choice !== 'cloud')) throw new Error('Choose a listed conflict and which copy to keep.');
+    const row = await loadAppRow(appKey);
+    const cloud = row && isUsefulAppState(appKey, row.data) ? row.data : {};
+    if (fingerprint(cloud) !== info.conflictCloudFingerprint) throw new Error('Cloud data changed again. Refresh the conflict before choosing.');
+    const local = collectAppState(appKey);
+    if (choice === 'cloud') {
+      applyAppState(appKey, cloud, { mode: 'replace' });
+      recordBaseline(info, cloud);
+      info.version = row && row.updated_at;
+    } else {
+      if (!isUsefulAppState(appKey, local)) throw new Error('Refusing to replace cloud data with an empty local state.');
+      const saved = await saveAppRow(appKey, local, row);
+      if (!saved) throw new Error('Cloud data changed again. Refresh the conflict before choosing.');
+      recordBaseline(info, local);
+      info.version = saved.updated_at;
+    }
+    info.conflict = null;
+    delete info.conflictCloudFingerprint;
+    info.pending = false;
+    info.failed = false;
+    saveMeta();
+    refreshSyncStatus();
+    return { ok: true };
+  }
+
+  async function syncOnce(appKey) {
+    const user = await getCurrentUser();
+    if (!user) { setSyncStatus(navigator.onLine ? 'Local only' : 'Offline · pending'); return { ok: false, reason: 'not-signed-in' }; }
+    const info = appMeta(appKey);
+    if (meta.userId && meta.userId !== user.id) {
+      info.conflict = ['account'];
+      saveMeta(); refreshSyncStatus();
+      return { ok: false, reason: 'account-conflict' };
+    }
+    meta.userId = user.id;
+    setSyncStatus('Syncing...');
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const revision = revisions[appKey] || 0;
+      const row = await loadAppRow(appKey);
+      if (revision !== (revisions[appKey] || 0)) continue;
+      const local = collectAppState(appKey);
+      const cloud = row && isUsefulAppState(appKey, row.data) ? row.data : {};
+      const merged = mergeApp(appKey, local, cloud, info);
+      if (merged.conflicts.length) {
+        info.conflict = merged.conflicts;
+        info.conflictCloudFingerprint = fingerprint(cloud);
+        info.failed = false;
+        info.pending = true;
+        saveMeta(); refreshSyncStatus();
+        return { ok: false, reason: 'conflict', keys: merged.conflicts };
+      }
+      info.conflict = null;
+      delete info.conflictCloudFingerprint;
+      const changedLocal = !same(local, merged.data);
+      const changedCloud = !same(cloud, merged.data);
+      if (changedCloud && !isUsefulAppState(appKey, merged.data) && isUsefulAppState(appKey, cloud)) {
+        info.conflict = ['empty-local-state'];
+        info.conflictCloudFingerprint = fingerprint(cloud);
+        info.pending = true;
+        saveMeta(); refreshSyncStatus();
+        return { ok: false, reason: 'conflict', keys: info.conflict };
+      }
+      if (changedLocal && editingCurrentApp(appKey)) {
+        info.pending = true;
+        saveMeta(); refreshSyncStatus();
+        return { ok: false, reason: 'editing' };
+      }
+      if (changedCloud && isUsefulAppState(appKey, merged.data)) {
+        const saved = await saveAppRow(appKey, merged.data, row);
+        if (!saved) continue;
+        if (revision !== (revisions[appKey] || 0)) {
+          recordBaseline(info, merged.data);
+          info.version = saved.updated_at;
+          info.pending = true;
+          saveMeta(); refreshSyncStatus();
+          return { ok: false, reason: 'new-local-change' };
+        }
+        info.version = saved.updated_at;
+      } else info.version = row && row.updated_at;
+      if (changedLocal) applyAppState(appKey, merged.data, { mode: 'replace' });
+      recordBaseline(info, merged.data);
+      info.pending = false;
+      info.failed = false;
+      saveMeta(); refreshSyncStatus();
+      return { ok: true, changed: changedLocal || changedCloud };
+    }
+    throw new Error('Cloud changed repeatedly during synchronization.');
+  }
+
+  function runSync(appKey) {
+    if (!APP_STORAGE[appKey]) return Promise.resolve({ ok: false, reason: 'unknown-app' });
+    if (running[appKey]) return running[appKey];
+    const startRevision = revisions[appKey] || 0;
+    running[appKey] = syncOnce(appKey).catch(err => {
+      const info = appMeta(appKey);
+      info.pending = true;
+      info.failed = true;
+      saveMeta(); refreshSyncStatus();
+      warnSync('Could not sync ' + appKey + '. Local data remains saved.', err);
       return { ok: false, reason: 'supabase-error', error: err };
-    }
+    }).finally(() => {
+      running[appKey] = null;
+      if ((revisions[appKey] || 0) !== startRevision && appMeta(appKey).pending) {
+        clearTimeout(timers[appKey]);
+        timers[appKey] = setTimeout(() => runSync(appKey), 800);
+      }
+    });
+    return running[appKey];
   }
 
-  async function pullAllFromCloud(options) {
-    const mode = options && options.mode === 'replace' ? 'replace' : 'merge';
-    try {
-      const user = await getCurrentUser();
-      if (!user) return { ok: false, reason: 'not-signed-in' };
-      for (const appKey of APP_KEYS) {
-        const data = await loadAppState(appKey);
-        if (isUsefulAppState(appKey, data)) applyAppState(appKey, data, { mode });
-        else if (mode !== 'replace' && Object.keys(collectAppState(appKey)).length) schedulePush(appKey);
-      }
-      return { ok: true };
-    } catch (err) {
-      warnSync('Could not load cloud data. LocalStorage was left untouched.', err);
-      return { ok: false, reason: 'supabase-error', error: err };
-    }
+  async function pushAppToCloud(appKey) { return runSync(appKey); }
+  async function pullAppFromCloud(appKey) { return runSync(appKey); }
+
+  async function pushAllToCloud() { return pullAllFromCloud(); }
+  async function pullAllFromCloud() {
+    const user = await getCurrentUser();
+    if (!user) return { ok: false, reason: 'not-signed-in' };
+    const results = [];
+    for (const appKey of APP_KEYS) results.push(await runSync(appKey));
+    return results.every(r => r.ok) ? { ok: true } : { ok: false, results };
   }
 
   function schedulePush(appKey) {
-    if (!appKey) {
-      debugSync('sync skipped; unknown localStorage key');
-      return;
-    }
-    if (suppressStorageSync) {
-      debugSync('sync skipped; applying cloud data', appKey);
-      return;
-    }
-    if (!isConfigured()) {
-      debugSync('sync skipped; Supabase not configured', appKey);
-      return;
-    }
-    pendingLocalChanges[appKey] = true;
-    debugSync('app_key sync scheduled', appKey);
-    setSyncStatus('Syncing...');
+    if (!appKey || suppressStorageSync || !isConfigured()) return;
+    revisions[appKey] = (revisions[appKey] || 0) + 1;
+    const info = appMeta(appKey);
+    info.pending = true;
+    info.failed = false;
+    saveMeta();
+    setSyncStatus('Saving locally');
     clearTimeout(timers[appKey]);
-    timers[appKey] = setTimeout(() => {
-      timers[appKey] = null;
-      pushAppToCloud(appKey).catch(err => {
-        setSyncStatus('Local only');
-        warnSync('Could not sync ' + appKey + ' after a local change.', err);
-      });
-    }, 800);
+    timers[appKey] = setTimeout(() => runSync(appKey), 800);
   }
 
   function scheduleAutoSync(appKey) {
@@ -486,7 +707,7 @@
     return null;
   }
 
-  function refreshExistingServiceWorkers() {
+  function removeLegacyServiceWorkers() {
     if (!('serviceWorker' in navigator)) return;
     navigator.serviceWorker.getRegistrations().then(registrations => {
       if (!registrations.length) {
@@ -494,9 +715,9 @@
         return;
       }
       registrations.forEach(registration => {
-        debugSync('service worker registration found; requesting update');
-        registration.update().catch(err => {
-          warnSync('Could not update an existing service worker registration.', err);
+        debugSync('removing legacy service worker; this static app does not register one');
+        registration.unregister().catch(err => {
+          warnSync('Could not remove an existing service worker registration.', err);
         });
       });
     }).catch(err => {
@@ -513,40 +734,24 @@
     }
     try {
       debugSync('PWA standalone mode detected', isStandalonePwa() ? 'yes' : 'no');
-      refreshExistingServiceWorkers();
+      removeLegacyServiceWorkers();
       const supa = await getSupabaseClient();
       if (!supa) return;
-      supa.auth.onAuthStateChange((_event, session) => {
+      supa.auth.onAuthStateChange((event, session) => {
         debugSync('auth state changed', session && session.user ? 'user is logged in' : 'user is logged out');
         window.dispatchEvent(new CustomEvent('dashboard-sync-auth-changed'));
-        if (session && session.user) {
-          pullAllFromCloud({ mode: 'merge' }).catch(err => {
-            warnSync('Could not merge cloud data after sign-in.', err);
-          });
-        }
+        if (session && session.user && event === 'SIGNED_IN') setTimeout(() => pullAllFromCloud(), 0);
       });
       const user = await getCurrentUser();
       debugSync('user is logged in', !!user);
       if (user) {
-        setSyncStatus('Synced');
-        const appKey = currentPageAppKey();
-        if (appKey) {
-          const data = await loadAppState(appKey);
-          const hash = isUsefulAppState(appKey, data) ? JSON.stringify(data) : '';
-          const changed = hash ? applyAppState(appKey, data, { mode: 'merge' }) : false;
-          if (!hash && Object.keys(collectAppState(appKey)).length) schedulePush(appKey);
-          const reloadKey = 'dashboard-sync-reloaded:' + appKey + ':' + window.location.pathname + ':' + hash;
-          if (changed && hash && !sessionStorage.getItem(reloadKey)) {
-            sessionStorage.setItem(reloadKey, '1');
-            window.location.reload();
-            return;
-          }
-        }
-        pullAllFromCloud({ mode: 'merge' }).catch(err => {
-          warnSync('Could not merge cloud data on page load.', err);
-        });
+        refreshSyncStatus();
+        pullAllFromCloud();
       } else {
         setSyncStatus('Local only');
+        if (isStandalonePwa() && navigator.onLine && currentPageAppKey()) {
+          window.location.replace('sync.html?return=' + encodeURIComponent(window.location.pathname.split('/').pop() || 'index.html'));
+        }
       }
     } catch (err) {
       setSyncStatus('Local only');
@@ -556,31 +761,20 @@
 
   function installPageFallbackTriggers() {
     const appKey = currentPageAppKey();
-    if (!appKey || appKey === 'sync') return;
-    ['input', 'change', 'click', 'submit'].forEach(eventName => {
-      document.addEventListener(eventName, () => {
-        schedulePush(appKey);
-      }, true);
+    if (!appKey) return;
+    const refresh = () => { if (navigator.onLine && !document.hidden) pullAllFromCloud(); };
+    window.addEventListener('focus', refresh);
+    window.addEventListener('online', () => { refreshSyncStatus(); refresh(); });
+    window.addEventListener('offline', refreshSyncStatus);
+    window.addEventListener('storage', event => {
+      const changedApp = event.key && appForStorageKey(event.key);
+      if (changedApp) runSync(changedApp);
     });
-    window.addEventListener('focus', () => {
-      pullAppFromCloud(appKey, { mode: 'merge' }).catch(err => {
-        warnSync('Could not refresh ' + appKey + ' on focus.', err);
-      });
-    });
-    document.addEventListener('visibilitychange', () => {
-      if (!document.hidden) {
-        pullAppFromCloud(appKey, { mode: 'merge' }).catch(err => {
-          warnSync('Could not refresh ' + appKey + ' after visibility change.', err);
-        });
-      }
-    });
-    setInterval(() => {
-      if (!document.hidden) {
-        pullAppFromCloud(appKey, { mode: 'merge' }).catch(err => {
-          warnSync('Could not refresh ' + appKey + ' on interval.', err);
-        });
-      }
-    }, 15000);
+    document.addEventListener('visibilitychange', refresh);
+    document.addEventListener('focusout', () => setTimeout(() => {
+      if (appMeta(appKey).pending) runSync(appKey);
+    }, 0));
+    setInterval(refresh, 60000);
   }
 
   const api = {
@@ -592,6 +786,8 @@
     getCurrentUser,
     signInWithPassword,
     signInWithEmail,
+    sendPasswordRecovery,
+    updatePassword,
     createAccount,
     signOut,
     loadAppState,
@@ -604,6 +800,9 @@
     pullAppFromCloud,
     pushAllToCloud,
     pullAllFromCloud,
+    getConflicts,
+    getConflictCopies,
+    resolveConflict,
     bootBackgroundSync
   };
 
