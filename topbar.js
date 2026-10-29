@@ -16,24 +16,31 @@
   // -------- CSS --------
   const css = `
 .topbar {
-  position: sticky; top: 0; z-index: 40;
-  display: flex; gap: 6px;
+  position: sticky; top: 0; z-index: 45;
+  isolation: isolate;
+  box-sizing: border-box;
+  width: 100%;
+  display: flex; gap: 12px;
   align-items: center;
+  justify-content: space-evenly;
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
-  padding: max(10px, env(safe-area-inset-top)) 14px 10px;
+  padding: max(10px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) 10px max(14px, env(safe-area-inset-left));
   /* Fully opaque so each page's body background can't bleed through
      and tint the bar a different color. Matches the dashboard's base
      dark background so the bar feels continuous with the page chrome. */
   background: #0a0a0b;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
   scrollbar-width: none;
 }
 .topbar::-webkit-scrollbar { width: 0; height: 0; display: none; }
 .topbar-pill {
+  position: relative; z-index: 1;
   flex: 0 0 auto; min-width: 0;
   display: inline-flex; align-items: center; gap: 8px;
   padding: 8px 12px;
@@ -116,7 +123,7 @@
 }
 
 @media (max-width: 480px) {
-  .topbar { padding-left: 10px; padding-right: 10px; gap: 4px; }
+  .topbar { justify-content: flex-start; padding-left: max(10px, env(safe-area-inset-left)); padding-right: max(10px, env(safe-area-inset-right)); gap: 8px; }
   .topbar-pill, .topbar-water-pill { padding: 7px 9px; gap: 5px; }
   .topbar-pill-label { font-size: 9px; letter-spacing: 0.10em; }
   .topbar-pill-count { font-size: 11px; }

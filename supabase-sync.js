@@ -56,8 +56,6 @@
   let sdkPromise = null;
   let booted = false;
   let suppressStorageSync = false;
-  let statusEl = null;
-  let statusTimer = null;
   const META_KEY = 'dashboard-sync-meta-v2';
   let meta;
   try { meta = JSON.parse(localStorage.getItem(META_KEY)) || {}; } catch (_) { meta = {}; }
@@ -285,47 +283,8 @@
     console.log.apply(console, args);
   }
 
-  function shouldShowStatus() {
-    const path = (window.location.pathname || '').split('/').pop() || 'index.html';
-    return path !== 'sync.html';
-  }
-
-  function ensureStatusIndicator() {
-    if (!shouldShowStatus() || statusEl || !document.body) return statusEl;
-    const el = document.createElement('div');
-    el.id = 'dashboardSyncStatus';
-    el.setAttribute('aria-live', 'polite');
-    el.style.cssText = [
-      'position:fixed',
-      'right:10px',
-      'bottom:max(10px, env(safe-area-inset-bottom))',
-      'z-index:30',
-      'padding:5px 8px',
-      'border:1px solid rgba(255,255,255,0.08)',
-      'border-radius:999px',
-      'background:rgba(10,10,11,0.72)',
-      'color:rgba(255,255,255,0.46)',
-      'font:700 10px/1 -apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif',
-      'letter-spacing:0.08em',
-      'text-transform:uppercase',
-      'pointer-events:none',
-      'backdrop-filter:blur(10px)'
-    ].join(';');
-    document.body.appendChild(el);
-    statusEl = el;
-    return statusEl;
-  }
-
   function setSyncStatus(text) {
-    const el = ensureStatusIndicator();
-    if (!el) return;
-    el.textContent = text;
-    clearTimeout(statusTimer);
-    if (text === 'Synced') {
-      statusTimer = setTimeout(() => {
-        if (statusEl && statusEl.textContent === 'Synced') statusEl.textContent = '';
-      }, 2500);
-    }
+    debugSync('status', text);
   }
 
   function isUsefulAppState(appKey, data) {
